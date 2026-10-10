@@ -34,11 +34,11 @@
 
 ## P3
 
-- ⬜ **P3.1** Measure the gateway · ★ · 🔵 · 🔑 — 
-- ⬜ **P3.2** Bus client & state projection · ★★★ · 🔵 — 
-- ⬜ **P3.3** LLM router · ★★★★ · 🟣 · 🔑 — 
-- ⬜ **P3.4** JSON I/O & repair · ★★ · 🔵 — 
-- ⬜ **P3.5** Brain main & supervision · ★★ · 🔵 — 
+- 🟡 **P3.1** Measure the gateway · ★ · 🔵 · 🔑 — Groq measured for real: openai/gpt-oss-20b ~0.3s, 1000 req/day + 8000 tok/min per ORG (not per key); Elevate not measured live — ELEVATE_TEAM_API_KEY still not provided, provider is code-complete but untested
+- ✅ **P3.2** Bus client & state projection · ★★★ · 🔵 — bus.py (WS client to /internal/brain) + state.py (event-fold projection) — real test: brain submits a smoke job through a REAL labd subprocess, projects job.metric/job.done correctly, 1/1
+- ✅ **P3.3** LLM router · ★★★★ · 🟣 · 🔑 — router.py: ordered fallback, per-provider sliding-window limiter, daily budget (brain.db), cache (llm_cache.db) — 4/4 tests incl. a real Groq call through the full router with budget recorded
+- ✅ **P3.4** JSON I/O & repair · ★★ · 🔵 — jsonio.py: fenced/prose-wrapped JSON extraction + trailing-comma repair — 7/7 tests
+- 🟡 **P3.5** Brain main & supervision · ★★ · 🔵 — main.py: reconnect-with-backoff loop against real labd, survives a labd restart without crashing (1/1) — full event-for-event replay-equivalence check deferred to P4 (needs real brain-side state to diff)
 
 ## P4
 
