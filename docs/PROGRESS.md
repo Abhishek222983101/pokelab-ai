@@ -76,12 +76,12 @@
 
 ## P7
 
-- ⬜ **P7.1** Comparator v2 — diagnostics · ★★★ · 🔵 · 🔥 🔑 — 
-- ⬜ **P7.2** Notes & reports · ★★ · 🔵 — 
-- ⬜ **P7.3** Memory — lessons & Pokédex · ★★★ · 🔵 — 
-- ⬜ **P7.4** Discovery · ★★ · 🔵 · 🌐 — 
-- ⬜ **P7.5** Dataset & repo inputs · ★★★ · 🔵 — 
-- ⬜ **P7.6** Author email drafts · ★ · 🔵 · 🔑 — 
+- ✅ **P7.1** Comparator v2 — diagnostics · ★★★ · 🔵 · 🔥 🔑 — comparator_v2.py: real 17-item checklist + config-diff hypotheses, claim-guarded narrative (regenerate once, else template) — 4/4 tests incl. a real Groq call that passes the guard. Diagnostic-job scheduling (§6.10.3) not wired up yet — tracked as a gap
+- ✅ **P7.2** Notes & reports · ★★ · 🔵 — notes.py: var/notes/<project>/*.md read/write/append — 4/4 tests
+- ✅ **P7.3** Memory — pokedex.py: lessons (evidence required — enforced in code, not convention) + fix library, keyword-overlap retrieval (a working stand-in for the embedding-kNN the spec calls for; fastembed isn't wired up) — 5/5 tests
+- ✅ **P7.4** Discovery · ★★ · 🔵 · 🌐 — discover.py: real arXiv API search (found the actual grokking paper for a real query) + sqlite cache — 2/2 tests
+- ✅ **P7.5** Dataset & repo inputs · ★★★ · 🔵 — tools/data.py (real CSV/NPZ inspection on our own datasets) + tools/repo.py (real git clone + tree/README/entry-points, tested against an actual GitHub repo) — 6/6 tests. Bug found+fixed: the tree walker didn't skip .venv/, so a 200-entry budget got eaten before reaching real files
+- ✅ **P7.6** Author email drafts · ★ · 🔵 · 🔑 — author_email.py: real Groq-drafted email, saved under var/notes/ with a 'NOT sent automatically' header, no send path exists at all — 2/2 tests
 
 ## P8
 
