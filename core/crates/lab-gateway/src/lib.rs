@@ -1,6 +1,7 @@
 //! lab-gateway: axum routes, WS hub, cmd intake, static serving, auth/pairing.
-//! Ships `/api/health`, `/api/events/since` (poll fallback) and the phone
-//! pairing flow (§5.8). The WebSocket hub and static file serving are still
+//! Ships `/api/health`, `/api/events/since` (poll fallback), the phone
+//! pairing flow (§5.8), the client WS fan-out (`/api/ws`) and the internal
+//! brain socket (`/internal/brain`, §5.4.3). Static file serving is still
 //! open (see docs/PROGRESS.md P1.2).
 
 use std::sync::Arc;
@@ -9,31 +10,44 @@ use axum::extract::{Query, State};
 use axum::http::StatusCode;
 use axum::routing::{get, post};
 use axum::{Json, Router};
+use lab_jobs::WarmPool;
 use lab_store::Store;
 use serde::{Deserialize, Serialize};
+use tokio::sync::Mutex;
 
 pub mod auth;
+pub mod hub;
+pub mod ws;
 
 use auth::{PairingStore, Role};
+use hub::Hub;
 
 #[derive(Clone)]
 pub struct AppState {
-    pub store: Arc<Store>,
+    pub hub: Arc<Hub>,
     pub pairing: Arc<PairingStore>,
     pub brain_secret: Arc<[u8]>,
+    pub warm_pool: Option<Arc<Mutex<WarmPool>>>,
 }
 
-pub fn router(store: Arc<Store>, brain_secret: Vec<u8>) -> Router {
+pub fn router(store: Arc<Store>, brain_secret: Vec<u8>, warm_pool: Option<WarmPool>) -> Router {
+    router_with_state(AppState {
+        hub: Arc::new(Hub::new(store)),
+        pairing: Arc::new(PairingStore::new()),
+        brain_secret: brain_secret.into(),
+        warm_pool: warm_pool.map(|p| Arc::new(Mutex::new(p))),
+    })
+}
+
+fn router_with_state(state: AppState) -> Router {
     Router::new()
         .route("/api/health", get(health))
         .route("/api/events/since", get(events_since))
         .route("/api/pair/issue", post(pair_issue))
         .route("/api/pair/claim", post(pair_claim))
-        .with_state(AppState {
-            store,
-            pairing: Arc::new(PairingStore::new()),
-            brain_secret: brain_secret.into(),
-        })
+        .route("/api/ws", get(ws::client_ws))
+        .route("/internal/brain", get(ws::brain_ws))
+        .with_state(state)
 }
 
 #[derive(Serialize)]
@@ -43,7 +57,7 @@ struct Health {
 }
 
 async fn health(State(state): State<AppState>) -> Json<Health> {
-    let latest_seq = state.store.latest_seq().unwrap_or(-1);
+    let latest_seq = state.hub.store().latest_seq().unwrap_or(-1);
     Json(Health {
         status: "ok",
         latest_seq,
@@ -61,7 +75,8 @@ async fn events_since(
     Query(q): Query<SinceQuery>,
 ) -> Json<Vec<lab_store::Event>> {
     let events = state
-        .store
+        .hub
+        .store()
         .since(q.after.unwrap_or(0), q.project.as_deref())
         .unwrap_or_default();
     Json(events)

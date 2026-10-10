@@ -16,12 +16,12 @@
 ## P1
 
 - ✅ **P1.1** Store + writer thread · ★★★ · 🔵 — SQLite WAL, single writer thread, append/since/snapshot — 5/5 cargo tests pass
-- 🟡 **P1.2** Hub & WebSocket gateway · ★★★ · 🔵 — /api/health, /api/events/since, pairing endpoints live; WS hub + static serving still open
+- ✅ **P1.2** Hub & WebSocket gateway · ★★★ · 🔵 — WS hub (hub.rs) + /api/ws client fan-out (hello/replay/resync) + /internal/brain (auth, publish, job_submit, subscribe) — real e2e: brain submits a job, client sees job.metric/job.done live, 1/1 test
 - ✅ **P1.3** Metrics pipeline · ★★★ · 🔵 — LTTB + ring buffer, 4/4 tests incl. spike-preservation check
 - ✅ **P1.4** Job engine & warm pool · ★★★★ · 🟣 — WarmPool: real python child process, stdin/stdout JSON-lines protocol, warm reuse across jobs — proven with a real GPU grokking run (17.1s, 1/1 test)
 - ✅ **P1.5** Telemetry & power guard · ★★ · 🔵 — real nvidia-smi + /sys power-profile sampling, tested against this actual laptop (2/2)
 - ✅ **P1.6** Auth & pairing · ★★ · 🔵 — pairing codes (single-use, 5min) + HMAC tokens + role rules — 4/4 tests
-- ⬜ **P1.7** Supervisor, CLI, replay, doctor · ★★★ · 🔵 — supervisor/CLI/replay/doctor not started; labd main.rs does not yet call lab-jobs
+- ✅ **P1.7** Supervisor, CLI, replay, doctor · ★★★ · 🔵 — `labd doctor` (GPU/power/disk/assets/datasets/venv/env checks, real against this machine) + `labd up`/`labd replay <db>` CLI via clap — 1/1 test
 
 ## P2
 

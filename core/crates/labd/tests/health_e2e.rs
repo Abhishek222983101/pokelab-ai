@@ -20,7 +20,7 @@ async fn health_and_events_since_respond() {
         })
         .unwrap();
 
-    let app = lab_gateway::router(store, b"test-secret".to_vec());
+    let app = lab_gateway::router(store, b"test-secret".to_vec(), None);
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
     tokio::spawn(async move {
