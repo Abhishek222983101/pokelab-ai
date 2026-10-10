@@ -1,0 +1,27 @@
+# Paper packs enabled for the demo. Each needs data/papers/<id>.pdf + a kit.
+
+[[pack]]
+id = "grokking"
+title = "Grokking: Generalization Beyond Overfitting (Power et al.)"
+kit = "grokking"
+hero = true
+
+[[pack]]
+id = "distillation"
+title = "Distilling the Knowledge in a Neural Network (Hinton et al.)"
+kit = "distill"
+
+[[pack]]
+id = "nerf"
+title = "NeRF: Representing Scenes as Neural Radiance Fields (Mildenhall et al.)"
+kit = "nerf"
+
+[[pack]]
+id = "matbench"
+title = "Matbench: Benchmarks for materials property prediction"
+kit = "materials"
+
+[[pack]]
+id = "arena"
+title = "Why do tree-based models still outperform deep learning on tabular data? (Grinsztajn et al.)"
+kit = "arena"

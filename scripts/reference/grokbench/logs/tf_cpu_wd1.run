@@ -1,0 +1,2 @@
+METRIC event=start import_s=1.040 setup_s=1.831 device=cpu fused=False tf32=False compile=False torch=2.14.1+cu130 threads=8 n_train=3830 n_test=8939 params=226688
+RUN rc=-9 total_s=600.13 first_metric_s=1.8526508170034504 first_step_s=1.9384033380047185 cpu_avg%=769 cpu_peak%=785 peak_rss_MB=896 gpu_util_avg%=0

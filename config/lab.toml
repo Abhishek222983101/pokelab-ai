@@ -1,0 +1,25 @@
+# PokéLab core config — ports, pool sizes, budgets, autonomy policy defaults.
+
+[server]
+host = "0.0.0.0"
+port = 7700
+
+[pool]
+# RAM-bound, not GPU-bound: ~1.17 GB per warm worker [MEASURED]. 2 concurrent GPU
+# jobs is the safe default on an 8 GB laptop GPU + 16 GB RAM.
+warm_workers = 2
+max_concurrent_gpu_jobs = 2
+prewarm_dummy_step = true
+
+[power]
+warn_on_battery = true
+# measured: Nanda grok config is ~3x slower unplugged (181s vs 62s)
+battery_slowdown_factor_estimate = 3.0
+
+[autonomy]
+# human approval gate for lifecycle actions (spawn/merge/retire/refine)
+require_approval_for = ["retire", "merge"]
+auto_approve = ["spawn_shadow"]
+
+[budget]
+default_project_budget_minutes = 30

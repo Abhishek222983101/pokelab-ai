@@ -1,0 +1,14 @@
+# Base agent roster. Each entry is an AgentSpec seed; prompts live under
+# brain/pokelab_brain/agents/prompts/<role>.md
+
+[[agent]]
+species = "eevee"
+role = "generalist"
+capabilities = ["read_paper", "run_kit", "analyze"]
+prompt_ref = "generalist.md"
+
+[[agent]]
+species = "oak"
+role = "meta_controller"
+capabilities = ["spawn", "merge", "retire", "schedule"]
+prompt_ref = "oak.md"
