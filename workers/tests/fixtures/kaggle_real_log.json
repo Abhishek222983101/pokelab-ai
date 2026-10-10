@@ -1,0 +1,12 @@
+[{"stream_name":"stdout","time":0.836376972,"data":"{\"t\": \"ready\", \"torch\": false, \"device\": \"cpu\", \"pid\": 0}\n"}
+,{"stream_name":"stdout","time":0.836429105,"data":"{\"t\": \"metric\", \"job_id\": \"remote-smoke\", \"step\": 1, \"k\": \"loss\", \"v\": 1.0}\n"}
+,{"stream_name":"stdout","time":0.836437258,"data":"{\"t\": \"metric\", \"job_id\": \"remote-smoke\", \"step\": 2, \"k\": \"loss\", \"v\": 0.5}\n"}
+,{"stream_name":"stdout","time":0.836525435,"data":"{\"t\": \"metric\", \"job_id\": \"remote-smoke\", \"step\": 3, \"k\": \"loss\", \"v\": 0.3333333333333333}\n"}
+,{"stream_name":"stdout","time":0.850613325,"data":"{\"t\": \"done\", \"job_id\": \"remote-smoke\", \"status\": \"ok\", \"final\": {\"platform\": \"Linux-6.18.48+-x86_64-with-glibc2.39\"}, \"error_sig\": null}\n"}
+,{"stream_name":"stderr","time":4.107798477,"data":"/usr/local/lib/python3.13/dist-packages/mistune.py:435: SyntaxWarning: invalid escape sequence '\\|'\n"}
+,{"stream_name":"stderr","time":4.107838724,"data":"  cells[i][c] = re.sub('\\\\\\\\\\|', '|', cell)\n"}
+,{"stream_name":"stderr","time":4.564852611,"data":"/usr/local/lib/python3.13/dist-packages/nbconvert/filters/filter_links.py:36: SyntaxWarning: invalid escape sequence '\\_'\n"}
+,{"stream_name":"stderr","time":4.564882388,"data":"  text = re.sub(r'_', '\\_', text) # Escape underscores in display text\n"}
+,{"stream_name":"stderr","time":6.495114443,"data":"[NbConvertApp] Converting notebook __script__.ipynb to html\n"}
+,{"stream_name":"stderr","time":7.8603855639999995,"data":"[NbConvertApp] Writing 275446 bytes to __results__.html\n"}
+]

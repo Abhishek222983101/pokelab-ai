@@ -2,7 +2,10 @@
 name = "pokelab-workers"
 version = "0.1.0"
 requires-python = ">=3.11"
-dependencies = ["pydantic>=2.9", "numpy>=2.0", "torch>=2.14,<2.15", "wandb>=0.19"]
+dependencies = ["pydantic>=2.9", "numpy>=2.0", "torch>=2.14,<2.15", "wandb>=0.19", "pokelab-labml"]
+
+[tool.uv.sources]
+pokelab-labml = { path = "../labml" }
 
 [dependency-groups]
 dev = ["pytest>=8.3"]
