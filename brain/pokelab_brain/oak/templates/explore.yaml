@@ -1,0 +1,12 @@
+name: explore
+steps:
+  - id: s1
+    cap: experiment_design
+    title: "Navigator-driven loop until uncertainty target or budget met"
+    accept: ["job_completed:explore_loop"]
+    after: []
+  - id: s2
+    cap: analyze
+    title: "Summarise what was learned"
+    accept: ["report_has_sections:findings"]
+    after: ["s1"]
