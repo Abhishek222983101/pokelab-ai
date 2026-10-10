@@ -14,6 +14,7 @@ use lab_jobs::WarmPool;
 use lab_store::Store;
 use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
+use tower_http::services::ServeDir;
 
 pub mod auth;
 pub mod hub;
@@ -31,23 +32,43 @@ pub struct AppState {
 }
 
 pub fn router(store: Arc<Store>, brain_secret: Vec<u8>, warm_pool: Option<WarmPool>) -> Router {
-    router_with_state(AppState {
+    router_with_web(store, brain_secret, warm_pool, None)
+}
+
+/// Same as `router`, plus serving the static-exported web app (§4.4, §8.2)
+/// from `web_dir` (e.g. `../web/out`) for any path the API routes above
+/// don't claim. `None` means "no web build yet" — the API still works,
+/// just with no UI behind it (useful for pure backend tests).
+pub fn router_with_web(
+    store: Arc<Store>,
+    brain_secret: Vec<u8>,
+    warm_pool: Option<WarmPool>,
+    web_dir: Option<std::path::PathBuf>,
+) -> Router {
+    let state = AppState {
         hub: Arc::new(Hub::new(store)),
         pairing: Arc::new(PairingStore::new()),
         brain_secret: brain_secret.into(),
         warm_pool: warm_pool.map(|p| Arc::new(Mutex::new(p))),
-    })
-}
+    };
 
-fn router_with_state(state: AppState) -> Router {
-    Router::new()
+    let mut router = Router::new()
         .route("/api/health", get(health))
         .route("/api/events/since", get(events_since))
         .route("/api/pair/issue", post(pair_issue))
         .route("/api/pair/claim", post(pair_claim))
         .route("/api/ws", get(ws::client_ws))
         .route("/internal/brain", get(ws::brain_ws))
-        .with_state(state)
+        .with_state(state);
+
+    if let Some(dir) = web_dir {
+        // fallback_service: any path none of the routes above matched
+        // falls through to the static export (including nested pages,
+        // since each is its own prerendered .html under `out/`).
+        router = router.fallback_service(ServeDir::new(dir));
+    }
+
+    router
 }
 
 #[derive(Serialize)]

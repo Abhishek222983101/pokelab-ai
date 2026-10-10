@@ -139,7 +139,18 @@ async fn run_up(db_path: std::path::PathBuf, read_only: bool) -> anyhow::Result<
         spawn_warm_pool_if_configured().await
     };
 
-    let app = lab_gateway::router(store, brain_secret, warm_pool);
+    // §4.4/§8.2: labd serves the static-exported web app directly — no
+    // separate Node process in production. `LABD_WEB_DIR` defaults to
+    // ../web/out; a missing build just means no UI, not a crash.
+    let web_dir = std::env::var("LABD_WEB_DIR")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|_| std::path::PathBuf::from("../web/out"));
+    let web_dir = web_dir.is_dir().then_some(web_dir);
+    if web_dir.is_none() {
+        tracing::warn!("no web build found — serving the API only (run `npm run build` in web/)");
+    }
+
+    let app = lab_gateway::router_with_web(store, brain_secret, warm_pool, web_dir);
     let addr = format!("0.0.0.0:{port}");
     let listener = tokio::net::TcpListener::bind(&addr)
         .await
