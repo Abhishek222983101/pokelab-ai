@@ -67,12 +67,21 @@ class LlmRouter:
         self,
         messages: list[dict[str, str]],
         route: list[str],
-        model: str | None = None,
+        model: str | dict[str, str] | None = None,
         max_tokens: int = 512,
         estimate_tokens: int = 200,
         **extra: Any,
     ) -> RouteResult:
-        key = cache_key(model or route[0], messages, max_tokens=max_tokens, **extra)
+        """`model` is either one name used for every provider in `route`
+        (fine when they share a model, e.g. two Groq-compatible deployments),
+        or a `{provider_name: model_name}` dict — REQUIRED once the route
+        mixes providers that don't share model names (Elevate's
+        "gpt-5.6-luna" means nothing to Groq, and vice versa). [Found while
+        wiring Elevate in as a second provider: a single flat model string
+        silently sent the wrong model name to whichever provider wasn't
+        first in the route.]"""
+        cache_model_hint = model if isinstance(model, str) else (model or {}).get(route[0], route[0])
+        key = cache_key(cache_model_hint, messages, max_tokens=max_tokens, **extra)
         cached = self.cache.get(key)
         if cached is not None:
             usage = cached.get("usage", {})
@@ -110,8 +119,9 @@ class LlmRouter:
                 attempts.append(f"{provider_name}: local token-rate limit reached")
                 continue
 
+            provider_model = model if isinstance(model, str) or model is None else model.get(provider_name)
             try:
-                resp: ProviderResponse = provider.complete(messages, model=model, max_tokens=max_tokens, **extra)
+                resp: ProviderResponse = provider.complete(messages, model=provider_model, max_tokens=max_tokens, **extra)
             except ProviderError as e:
                 attempts.append(f"{provider_name}: {e}")
                 logger.warning("provider %s failed: %s", provider_name, e)

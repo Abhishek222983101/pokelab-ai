@@ -34,7 +34,7 @@
 
 ## P3
 
-- 🟡 **P3.1** Measure the gateway · ★ · 🔵 · 🔑 — Groq measured for real: openai/gpt-oss-20b ~0.3s, 1000 req/day + 8000 tok/min per ORG (not per key); Elevate not measured live — ELEVATE_TEAM_API_KEY still not provided, provider is code-complete but untested
+- ✅ **P3.1** Measure the gateway · ★ · 🔵 · 🔑 — Groq AND Elevate both measured for real. Found+fixed a real bug: our ElevateProvider POSTed to '/chat/completions' but Elevate's gateway IS the completions endpoint (a bare POST to the base URL) — a curl against the live gateway proved it, 405 before the fix, a real completion after. Also fixed a router design gap: `model` can now be a {provider: model_name} dict, since Elevate and Groq don't share model names — 2/2 new Elevate tests + 1 real cross-provider fallback test, 176/176 brain suite
 - ✅ **P3.2** Bus client & state projection · ★★★ · 🔵 — bus.py (WS client to /internal/brain) + state.py (event-fold projection) — real test: brain submits a smoke job through a REAL labd subprocess, projects job.metric/job.done correctly, 1/1
 - ✅ **P3.3** LLM router · ★★★★ · 🟣 · 🔑 — router.py: ordered fallback, per-provider sliding-window limiter, daily budget (brain.db), cache (llm_cache.db) — 4/4 tests incl. a real Groq call through the full router with budget recorded
 - ✅ **P3.4** JSON I/O & repair · ★★ · 🔵 — jsonio.py: fenced/prose-wrapped JSON extraction + trailing-comma repair — 7/7 tests
