@@ -93,14 +93,14 @@
 
 ## P9
 
-- ⬜ **P9.1** Asset pipeline · ★★★ · 🔵 — 
-- ⬜ **P9.2** Region map · ★★★ · 🔵 — 
-- ⬜ **P9.3** Lab interior · ★★★ · 🔵 — 
-- ⬜ **P9.4** Agent entities · ★★★ · 🔵 — 
-- ⬜ **P9.5** The Director · ★★★★★ · 🟣 — 
-- ⬜ **P9.6** Gym scene · ★★★★ · 🔵 — 
-- ⬜ **P9.7** Overlays & audio · ★★★ · 🔵 — 
-- ⬜ **P9.8** Binding audit · ★★ · 🔵 — 
+- ⬜ **P9.1** Asset pipeline · ★★★ · 🔵 — no asset pipeline (assets/build_atlases.py) built — sprites exist on disk (assets/vendor/showdown) but aren't packed into Phaser atlases yet
+- ⬜ **P9.2** Region map · ★★★ · 🔵 — no region map scene
+- ⬜ **P9.3** Lab interior · ★★★ · 🔵 — no lab interior scene
+- 🟡 **P9.4** Agent entities · ★★★ · 🔵 — game/world/stations.ts: the real capability->station mapping from §9.4.2 — 4/4 tests. No AgentEntity/grid-engine wiring yet
+- ✅ **P9.5** The Director · ★★★★★ · 🟣 — game/director/director.ts: per-entity FIFO queues + the real-time-bound compression rule (walks collapse to a teleport, only the latest bubble survives, battle turns aggregate) + overlay-queue-to-toast — 7/7 tests. Bug found+fixed: re-compressing an already-compressed battle_turn task recomputed from raw deltaPct and silently dropped earlier history; fixed by having compressed tasks carry their own aggregate forward
+- ⬜ **P9.6** Gym scene · ★★★★ · 🔵 — no Phaser scene actually renders yet — Director is pure logic, untested against a real Phaser canvas
+- ⬜ **P9.7** Overlays & audio · ★★★ · 🔵 — not started
+- ⬜ **P9.8** Binding audit · ★★ · 🔵 — not started — nothing to audit yet since nothing renders
 
 ## P10
 
