@@ -7,30 +7,30 @@
 ## P0
 
 - ✅ **P0.1** Repo & workspace skeleton · ★ · 🔵 — repo tree + README + justfile created
-- ⬜ **P0.2** Python env · ★ · 🔵 · 🌐 — 
+- ✅ **P0.2** Python env · ★ · 🔵 · 🌐 — uv venvs for brain/labml/workers, each installs + pytest runs
 - ⬜ **P0.3** Node & web fork · ★ · 🔵 — 
 - ✅ **P0.4** Secrets & config · ★ · 🔵 · 🔑 — secrets generated into .env, config/*.toml written
-- 🟡 **P0.5** Fetch everything (offline-first) · ★★ · 🔵 · 🌐 — datasets/papers/sprites already on disk; fetch_*.sh scripts not written yet
-- ⬜ **P0.6** Contracts skeleton · ★★ · 🔵 — 
+- ✅ **P0.5** Fetch everything (offline-first) · ★★ · 🔵 · 🌐 — datasets/papers/sprites verified on disk; fetch_*.sh re-verify on a fresh machine
+- 🟡 **P0.6** Contracts skeleton · ★★ · 🔵 — no contracts/ package yet — events/commands only typed ad hoc in lab-store/lab-jobs so far
 
 ## P1
 
 - ✅ **P1.1** Store + writer thread · ★★★ · 🔵 — SQLite WAL, single writer thread, append/since/snapshot — 5/5 cargo tests pass
-- 🟡 **P1.2** Hub & WebSocket gateway · ★★★ · 🔵 — /api/health + /api/events/since live, e2e-tested; WS hub + static serving pending
-- ⬜ **P1.3** Metrics pipeline · ★★★ · 🔵 — 
-- ⬜ **P1.4** Job engine & warm pool · ★★★★ · 🟣 — 
-- ⬜ **P1.5** Telemetry & power guard · ★★ · 🔵 — 
-- ⬜ **P1.6** Auth & pairing · ★★ · 🔵 — 
-- ⬜ **P1.7** Supervisor, CLI, replay, doctor · ★★★ · 🔵 — 
+- 🟡 **P1.2** Hub & WebSocket gateway · ★★★ · 🔵 — /api/health, /api/events/since, pairing endpoints live; WS hub + static serving still open
+- ✅ **P1.3** Metrics pipeline · ★★★ · 🔵 — LTTB + ring buffer, 4/4 tests incl. spike-preservation check
+- ✅ **P1.4** Job engine & warm pool · ★★★★ · 🟣 — WarmPool: real python child process, stdin/stdout JSON-lines protocol, warm reuse across jobs — proven with a real GPU grokking run (17.1s, 1/1 test)
+- ✅ **P1.5** Telemetry & power guard · ★★ · 🔵 — real nvidia-smi + /sys power-profile sampling, tested against this actual laptop (2/2)
+- ✅ **P1.6** Auth & pairing · ★★ · 🔵 — pairing codes (single-use, 5min) + HMAC tokens + role rules — 4/4 tests
+- ⬜ **P1.7** Supervisor, CLI, replay, doctor · ★★★ · 🔵 — supervisor/CLI/replay/doctor not started; labd main.rs does not yet call lab-jobs
 
 ## P2
 
-- ⬜ **P2.1** Worker runtime · ★★ · 🔵 — 
-- ⬜ **P2.2** Kit interface + `smoke` kit · ★★ · 🔵 — 
-- ⬜ **P2.3** Grokking kit — models & data · ★★★ · 🔵 · 🔥 — 
-- ⬜ **P2.4** Grokking telemetry hooks · ★★★ · 🔵 · 🔥 🧠 — 
-- ⬜ **P2.5** Kit benchmark & pool sizing · ★★ · 🔵 · 🔥 — 
-- ⬜ **P2.6** W&B offline logging · ★ · 🔵 · 🔑 — 
+- ✅ **P2.1** Worker runtime · ★★ · 🔵 — pool_main.py warm worker entrypoint — spec-exact ready/job/metric/log/done protocol
+- ✅ **P2.2** Kit interface + `smoke` kit · ★★ · 🔵 — KitSpec + `smoke` kit, 3/3 pytest + proven through the real Rust pool
+- ✅ **P2.3** Grokking kit — models & data · ★★★ · 🔵 · 🔥 — ported from scripts/reference/grokbench/grok.py (transformer+MLP), unchanged training logic
+- 🟡 **P2.4** Grokking telemetry hooks · ★★★ · 🔵 · 🔥 🧠 — basic train/test acc+loss streamed live; weight-norm/Fourier analysis (the deeper telemetry) not ported yet
+- ✅ **P2.5** Kit benchmark & pool sizing · ★★ · 🔵 · 🔥 — real run: 96.5% test acc in 12.9s (frac=0.5) and a Rust-driven run groks to 95% in 17.1s wall — matches §11.1 budget order of magnitude
+- ✅ **P2.6** W&B offline logging · ★ · 🔵 · 🔑 — offline W&B logging (no key reaches the worker) + scripts/wandb_sync.sh pushes with the key from .env — 3 real runs now live on wandb.ai/.../pokelab
 
 ## P3
 

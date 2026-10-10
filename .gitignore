@@ -5,6 +5,10 @@
 
 # runtime state
 var/
+wandb/
+workers/wandb/
+labml/wandb/
+brain/wandb/
 
 # build artifacts
 target/

@@ -33,7 +33,10 @@ async fn main() -> anyhow::Result<()> {
         .and_then(|p| p.parse().ok())
         .unwrap_or_else(default_port);
 
-    let app = lab_gateway::router(store);
+    let brain_secret = std::env::var("LABD_BRAIN_SECRET")
+        .unwrap_or_else(|_| "dev-only-insecure-secret-set-LABD_BRAIN_SECRET".to_string())
+        .into_bytes();
+    let app = lab_gateway::router(store, brain_secret);
     let addr = format!("0.0.0.0:{port}");
     let listener = tokio::net::TcpListener::bind(&addr)
         .await
