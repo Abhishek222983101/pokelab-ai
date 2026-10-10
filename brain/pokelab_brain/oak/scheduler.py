@@ -61,7 +61,14 @@ async def run_plan(
     step_configs: dict[str, dict[str, Any]],
     tool_ctx: ToolContext | None = None,
     max_parallel: int = 4,
+    on_capability_gap: Callable[[str], Awaitable[Any]] | None = None,
+    on_task_outcome: Callable[[str, bool, float], Awaitable[None]] | None = None,
 ) -> SchedulerResult:
+    """`on_capability_gap` and `on_task_outcome` are the live lifecycle
+    loop's hooks (§6.1: evaluated "after each reward"). Passing neither
+    keeps this exactly the P4.7 scheduler; passing both is what turns a
+    one-off plan run into a team that spawns/retires in response to what
+    actually happened — no simulation, no hand-invoked trigger."""
     result = SchedulerResult()
     attempts: dict[str, int] = {}
     semaphore = asyncio.Semaphore(max_parallel)
@@ -70,6 +77,11 @@ async def run_plan(
         async with semaphore:
             attempts[step.id] = attempts.get(step.id, 0) + 1
             candidates = [a for a, caps in agent_capabilities.items() if step.cap in caps]
+            if not candidates and on_capability_gap is not None:
+                new_agent = await on_capability_gap(step.cap)
+                if new_agent is not None:
+                    agent_capabilities[new_agent.id] = new_agent.capabilities
+                    candidates = [new_agent.id]
             if not candidates:
                 result.outcomes[step.id] = StepOutcome(step.id, "escalated", attempts[step.id])
                 result.escalated.append(step.id)
@@ -102,6 +114,8 @@ async def run_plan(
                 gpu_s=0.0, gpu_budget_s=max(step.budget.max_gpu_s, 1.0),
             )
             selector.record_outcome(agent_id, reward_breakdown.reward)
+            if on_task_outcome is not None:
+                await on_task_outcome(agent_id, passed, reward_breakdown.reward)
 
             if passed:
                 result.outcomes[step.id] = StepOutcome(step.id, "completed", attempts[step.id], final, agent_id, reward_breakdown.reward)

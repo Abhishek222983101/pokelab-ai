@@ -68,11 +68,11 @@
 ## P6
 
 - ✅ **P6.1** Policy & approvals · ★★★ · 🔵 — policy.py: ApprovalPolicy + ApprovalStore (request/decide/expire-to-default) — 6/6 tests
-- ✅ **P6.2** Spawn · ★★★ · 🔵 · 🔑 — spawn.py: real Groq call drafts a validated AgentSpec for a real coverage gap (ADAS-style, stepping-stone agents + past spawns in the prompt) — 1/1 (real LLM call)
+- ✅ **P6.2** Spawn · ★★★ · 🔵 · 🔑 — spawn.py (real Groq draft) is now LIVE-WIRED via oak/lifecycle_loop.py: the scheduler calls on_capability_gap the moment a step has no candidate agent, and after a real repeated gap, a new agent is drafted and put to work in the SAME run — no test code calls spawn directly anymore. 1/1 isolated + proven inside the live autonomy test
 - ✅ **P6.3** Refine (GEPA-lite) + shadow eval · ★★★★★ · 🟣 · 🔑 — lifecycle.py triggers (real Beta-posterior/Jaccard math) + refine.py: real Groq reflection call rewrites a prompt from traces, decide_promotion enforces the Pareto rule (mean +0.05, no task regresses >0.1) — 4/4 incl. real LLM call. Shadow-eval's *replay* (vs just the decision math) needs P4.6/P4.7's task-replay infra — not built yet, noted honestly
-- ✅ **P6.4** Merge & retire · ★★★ · 🔵 · 🔑 — merge.py: real Groq synthesis call unions two agents' specs, decide_merge enforces 'merged >= max(parent) - 0.03' — 3/3 incl. real LLM call
+- ✅ **P6.4** Merge & retire · ★★★ · 🔵 · 🔑 — retire.py is now LIVE-WIRED: oak/lifecycle_loop.py evaluates check_retire after every real task outcome (§6.1's cadence, literally). merge.py's trigger is evaluated periodically too, but only ever PUBLISHES a recommendation (agent.merge_recommended) rather than auto-executing, since merge's shadow-eval still needs the P4.6/P4.7 replay infra to decide safely — retire doesn't need that (it only needs the agent's own posterior, which is real)
 - ✅ **P6.5** Reward v2 & feedback · ★★ · 🔵 — reward_v2.py: the full §6.9 formula (Q/S/T/C + optional human feedback) — 7/7 tests
-- ✅ **P6.6** Lifecycle simulation test · ★★★ · 🔵 — the full lifecycle simulation: spawn -> refine -> merge -> retire against a REAL labd instance with REAL Groq calls for every generative step, events published and verified in order — 1/1 (flaky only on Groq's own transient 503 'over capacity' errors, confirmed by rerunning standalone — not our bug, see note on P4.10)
+- ✅ **P6.6** Lifecycle simulation test · ★★★ · 🔵 — test_lifecycle_simulation.py (scripted, all 4 transitions) PLUS test_lifecycle_loop_live.py — the real proof of dynamic evolution: one agent fails 20 real smoke-kit jobs through actual labd and retires ITSELF purely from its own live Beta posterior (verified the 20-failure number with scipy before picking it, not guessed), while a second, unrelated capability gap gets a brand-new agent drafted by a real Groq call and put to work, entirely from what happened during that one run. No test code calls spawn/retire by hand in this one — 1/1
 
 ## P7
 
