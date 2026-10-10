@@ -1,0 +1,22 @@
+# Providers, models, routes, limits. Keys come from .env, never from here.
+
+[providers.elevate]
+base_url = "https://elevate1-0.vercel.app/api/ai"
+models = ["gpt-5.6-luna", "deepseek-v4-pro", "gpt-5-mini"]
+daily_token_budget = 800000
+reset_utc = "00:00"
+max_request_bytes = 49152
+# [MEASURED] ~10 rapid calls -> 429; no tool-calling, no schema enforcement
+rate_limit_calls_per_minute = 10
+
+[providers.groq]
+base_url = "https://api.groq.com/openai/v1"
+models = ["gpt-oss-120b", "gpt-oss-20b", "qwen3.8-27b", "whisper-large-v3"]
+# per-ORG limit, not per key [MEASURED]
+tokens_per_minute = 8000
+requests_per_day = 1000
+custom_user_agent = "PokeLab/1.0 (+hackathon demo)"
+
+[routing]
+default_route = ["elevate", "groq"]
+interactive_route = ["groq", "elevate"]

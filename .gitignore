@@ -1,0 +1,29 @@
+# secrets
+.env
+*.env
+*.key
+
+# runtime state
+var/
+wandb/
+workers/wandb/
+labml/wandb/
+brain/wandb/
+
+# build artifacts
+target/
+node_modules/
+__pycache__/
+*.pyc
+.venv/
+.next/
+out/
+web/public/assets/gen/
+
+# large/downloaded
+data/
+assets/vendor/
+
+# misc
+.DS_Store
+*.log

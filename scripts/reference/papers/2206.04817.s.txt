@@ -1,0 +1,2847 @@
+ The Slingshot Mechanism: An Empirical Study of
+ Adaptive Optimizers and the Grokking Phenomenon
+ Vimal Thilak Etai Littwin Shuangfei Zhai
+ vthilak@apple.com elittwin@apple.com szhai@apple.com
+
+ Omid Saremi Roni Paiss Joshua Susskind
+ osaremi@apple.com rpaiss@apple.com jsusskind@apple.com
+
+
+
+
+arXiv:2206.04817v2 [cs.LG] 13 Jun 2022
+ Abstract
+ The grokking phenomenon as reported by Power et al. [17] refers to a regime where
+ a long period of overfitting is followed by a seemingly sudden transition to perfect
+ generalization. In this paper, we attempt to reveal the underpinnings of Grokking
+ via a series of empirical studies. Specifically, we uncover an optimization anomaly
+ plaguing adaptive optimizers at extremely late stages of training, referred to as
+ the Slingshot Mechanism. A prominent artifact of the Slingshot Mechanism can
+ be measured by the cyclic phase transitions between stable and unstable training
+ regimes, and can be easily monitored by the cyclic behavior of the norm of the
+ last layers weights. We empirically observe that without explicit regularization,
+ Grokking as reported in [17] almost exclusively happens at the onset of Slingshots,
+ and is absent without it. While common and easily reproduced in more general
+ settings, the Slingshot Mechanism does not follow from any known optimization
+ theories that we are aware of, and can be easily overlooked without an in depth
+ examination. Our work points to a surprising and useful inductive bias of adaptive
+ gradient optimizers at late stages of training, calling for a revised theoretical
+ analysis of their origin.
+
+
+ Slingshot
+
+
+
+
+ Norm Loss Norm
+ growth spike plateau
+
+
+
+ Figure 1: Slingshot Effects are observed with a fully-connected ReLU network (FCN). The FCN is trained with
+ 200 randomly chosen CIFAR-10 samples with Adam. Multiple Slingshot Effects occur in a cyclic fashion as
+ indicated by the dotted red boxes. Each Slingshot Effect is characterized by a period of rapid growth of the last
+ layer weights, an ensuing training loss spike, and a norm plateau.
+
+
+
+ 1 Introduction
+ Recently, the grokking phenomenon was proposed by [17], in the context of studying the optimization
+ and generalization aspects in small, algorithmically generated datasets. Specifically, grokking refers
+ to a sudden transition from chance level validation accuracy to perfect generalization, long past the
+
+ Preprint.
+ point of perfect training accuracy, i.e., Terminal Phase of Training (TPT). This curious behavior
+ contradicts the common belief of early stopping in the overfitting regimes, and calls for further
+ understandings of the generalization behavior of deep neural networks.
+ In the literature, it has been suggested that in some scenarios, marginal improvements in validation
+ accuracy appears in TPT, which seem to directly support grokking. For example, it has been shown
+ in [19] that gradient descent on logistic regression problems converges to the maximum margin
+ solution, a result that has been since extended to cover a wider setting [13, 22]. A key finding in [19]
+ shows that when training on linearly separable data with gradient descent using logistic regression,
+ the classifier’s margin slowly improves at a rate of O( log1 t ), while the weight norm of the predictor
+ layer grows at a rate of O(t), where t is the number of training steps. While specified for gradient
+ descent, Wang et al. [22] showed that similar results also hold for adaptive optimizers (such as Adam
+ and RMSProp). Taking these results into consideration, one could reasonably hypothesise that deep
+ nonlinear networks could benefit from longer training time, even after achieving zero errors on the
+ training set.
+
+ In this paper, we provide in depth empirical analyses to the mechanism behind grokking. We find that
+ the phenomenology of grokking differs from those predicted by [19] in several key aspects. To be
+ concrete, we find that grokking occurs during the onset of another intriguing phenomenon directly
+ related to adaptive gradient methods (see Algorithm 1 for a generic description of adaptive gradient
+ methods). In particular, leveraging the basic setup in [17], we make the following observations:
+ 1. During the TPT, training exhibits a cyclic behaviour between stable and unstable regimes. A
+ prominent artifact of this behaviour can be seen in the norm of a model’s last layer weights, which
+ exhibits a cyclical behavior with distinct, sharp phase transitions that alternate between rapid growth
+ and plateaus over the course of training.
+ 2. The norm grows rapidly sometime after the model has perfect classification accuracy on training
+ data. A sharp phase transition then occurs when the model missclassifies training samples. This
+ phase change is accompanied by a sudden spike in training loss, and a plateau in the norm growth of
+ the final classification layer.
+ 3. The features (pre-classification layer) show rapid evolution as the weight norm transitions from
+ rapid growth to a growth plateau, and change relatively little at the norm growth phase.
+ 4. Phase transitions between norm growth and norm plateau phases are typically accompanied by a
+ sudden bump in generalization as measured by classification accuracy on a validation set, as observed
+ in a dramatic fashion in [17].
+ 5. It is empirically observed that grokking as reported in [17] almost exclusively happens at the onset
+ of Slingshots, and is absent without it.
+ We denote the observations above as the Slingshot Effect, which is defined to be the full cycle starting
+ from the norm growth phase, and ending in the norm plateau phase. And empirically, a single training
+ run typically exhibits multiple Slingshot Effects. Moreover, while grokking as described in [17]
+ might be data dependent, we find that the Slingshot Mechanism is pervasive, and can be easily
+ reproduced in multiple scenarios, encompassing a variety of models (Transformers and MLPs) and
+ datasets (both vision, algorithmic and synthetic datasets). Since we only observe Slingshot Effects
+ when training classification models with adaptive optimizers, our work can be seen as empirically
+ characterizing an implicit bias of such optimizers. Finally, while our observations and conclusions
+ hold for most variants of adaptive gradient methods, we focus on Adam in the main paper, and
+ relegate all experiments with additional optimizers to the appendix.
+
+
+ Algorithm 1 Generic Adaptive Gradient Method
+ Input: X1 ∈ F , step size µ, sequence of functions {φt , ψt }Tt=1 ,  ∈ R+
+ Output: Fitted α.
+1 for t = 1..., T do
+2 gt = ∇ft (xt ).
+3 mt = φt (g1 , ..., gt ) and Vt = ψt (g1 , ..., gt ).
+4 xt+1 = xt − √µm2t
+ Vt +
+
+
+
+
+ 2
+1.1 Implications of Our Findings
+
+The findings in this paper have both theoretical and practical implications that go beyond characteriz-
+ing Grokking. A prominent feature of the Slingshot Mechanism is the repeating phase shifts between
+stable and unstable training regimes, where the unstable phase is characterized by extremely large
+gradients, and spiking training loss. Furthermore, we find that learning at late stages of training have
+a cyclic property, where non trivial feature adaptation only takes place at the onset of a phase shift.
+From a theoretical perspective, this is contradictory to common assumptions made in the literature of
+convergence of adaptive optimizers, which typically require L smooth cost functions, and bounded
+stochastic gradients, either in the L2 or L∞ norm, decreasing step sizes and stable convergence
+[23, 1, 2]. From the apparent generalization benefits of Slingshot Effects, we cast doubt on the ability
+of current working theories to explain the Slingshot Mechanism.
+Practically, our work presents additional evidence for the growing body of work indicating the
+importance of the TPT stage of training for optimal performance [7, 17, 14].
+In an era where the sheer size of models are quickly becoming out of reach for most practitioners,
+our work suggest focusing on improved methods to prevent excessive norm growth either implicitly
+through Slingshot Effects or through other forms of explicit regularization or normalization.
+
+
+
+
+2 Related Work
+
+
+The Slingshot Mechanism we uncover here is reminiscent of the catapult mechanism described
+in al. [11]. Lewkowycz et al. [11] show that loss of a model trained via gradient descent with an
+appropriately large learning rate shows a non-monotonic behavior —the loss initially increases
+and starts decreasing once the model "catapults" to a region of lower curvature —early in training.
+However, the catapult phenomenon differs from Slingshot Effects in several key aspects. The catapult
+mechanism is observed with vanilla or stochastic gradient descent unlike the Slingshot Mechanism
+that is seen with adaptive optimizers including Adam [9] and RMSProp [20]. Furthermore, the
+catapult phenomenon relates to a large initial learning rate, and does not exhibit a repeating cyclic
+behavior. More intriguingly, Slingshot Effects only emerge late in training, typically long after the
+model reaches perfect accuracy on the training data.
+Cohen et al. [4] describe a "progressive sharpening" phenomenon in which the maximum eigenvalue
+of the loss Hessian increases and reaches a value that is at equal to or slightly larger than 2/η where
+η is the learning rate. This "progressive sharpening" phenomenon leads to model to enter a regime
+Cohen et al. [4] call Edge of Stability where-in the model shows non-monotonic training loss behavior
+over short time spans. Edge of Stability is similar to the Slingshot Mechanism in that it is shown to
+occur later on in training. However, Edge of Stability is shown for full-batch gradient descent while
+we observe Slingshot Mechanism with adaptive optimizers, primarily Adam [9] or AdamW [12].
+As noted above, the Slingshot Mechanism emerges late in training, typically longer after the model
+reaches perfect accuracy and has low loss on training data. The benefits of continuing to training
+a model in this regime has been theoretically studied in several works including [19, 13]. Soudry
+et al. [19] show that training a linear model on separable data with gradient using the logistic
+loss function leads to a max-margin solution. Furthermore Soudry et al. [19] prove that the loss
+decreases at a rate of O( 1t ) while the margin increases much slower O( log1 t ), where t is the number
+of training steps. Soudry et al. [19] also note that the weight norm of the predictor layer increases
+at a logarithmic rate, i.e., O(log(t)). Lyu and Li [13] generalize the above results to homogeneous
+neural networks trained with exponential-type loss function and show that loss decreases at a rate of
+O(1/t(log(t))2−2/L ). This is, where L is defined as the order of the homogenous neural network.
+Although these results indeed prove the benefits of training models, their analyses are limited
+to gradient descent. Moreover, the analyses developed by Soudry et al [19] do not predict any
+phenomenon that resembles the Slingshot Mechanism. Wang et al. [22] show that homogenous neural
+networks trained RMSProp [20] or Adam without momentum [22] do converge in direction to the
+max-margin solution. However, none of these papers can explain the Slingshot Mechanism and
+specifically the cyclical behavior of the norm of the last layer weights.
+
+
+ 3
+ train loss last layer norm validation loss last layer norm layer1 feature last layer norm
+
+ 100 0.08
+ 2.0 10 2 2.0 2.0
+ 10 2 0.06
+
+
+ last layer norm last layer norm feature change last layer norm
+ 10 4 1.5 10 3 1.5 1.5
+ loss loss 0.04
+ 10 6 1.0 1.0
+ 10 4 1.0
+ 10 8 0.02
+ 0.5 0.5
+ 0.5
+ 10 10 10 5
+ 0.0 0.0 0.00
+ 101 102 103 104 105 106 101 102 103 104 105 106 104 105 106
+ step step step
+
+ (a) (c) (e)
+ train accuracy last layer norm validation accuracy last layer norm layer2 feature last layer norm
+ 100 100 0.035
+ 2.0 2.0 0.030 2.0
+ 80 80
+ 0.025
+
+
+ last layer norm last layer norm feature change last layer norm
+ 60 1.5 60 1.5 1.5
+ 0.020
+ accuracy 1.0 accuracy 1.0 0.015
+ 40 40
+ 1.0
+ 0.010
+ 20 0.5 20 0.5
+ 0.005 0.5
+ 0 0.0 0 0.0 0.000
+ 101 102 103 104 105 106 101 102 103 104 105 106 104 105 106
+ step step step
+
+ (b) (d) (f)
+Figure 2: Division dataset: Last layer weight norm growth versus a) loss on training data b) accuracy on training
+data (c) loss on validation data d) accuracy on validation data e) normalized relative change in features of first
+Transformer layer (f) normalized relative change in features of second Transformer layer. Note that the feature
+change plots are shown starting at 10K step to emphasize the feature change behavior during norm growth and
+plateau phases, revealing that the features stop changing during the norm growth phase and resume changing
+during the plateaus.
+
+
+
+3 The Slingshot Mechanism
+
+3.1 Experimental Setup
+
+We use the training setup studied by Power et al. [17] in the main paper as a working example to
+illustrate the Slingshot Mechanism. In this setup, we train decoder-only Transformers [21] on a
+modular division dataset [17] of the form a ÷ b = c, where a, b and c are discrete symbols and ÷
+refers to division modulo p for some prime number p, split into training and validation sets. The
+task consists of calculating c given a and b. The algorithmic operations and details of the datasets
+considered in our experiments are described in Appendix B. The Transformer consists of 2 layers,
+of width 128 and 4 attention heads with approximately 450K trainable parameters and is optimized
+by Adam [9, 12]. For these experiments we set learning rate to 0.001, weight decay to 0, β1 = 0.9,
+β2 = 0.98,  = 10−08 , linear learning rate warmup for the first 10 steps and minibatch size to 512
+which are in line with the hyperparameters considered in [17].
+Figure 2 shows the metrics of interest that we record on training and validation samples for modular
+division dataset. Specifically, we measure 1) train loss; 2) train accuracy; 3) validation loss; 4)
+validation accuracy; 5) last layer norm: denoting the norm of the classification layer’s weights and 6)
+feature change: the relative change of features of the l-th layer (hl ) after the t-th gradient update step
+khlt+1 −hlt k
+ khlt k
+ . We observe from Figure 2b that the model is able to reach high training accuracy around
+ 5
+step 300 while validation accuracy starts improving after 10 steps as seen in Figure 2d. Power et
+al. [17] originally showed this phenomenon and refer to it as grokking. We observe that while the
+validation accuracy does not exhibit any change until much later in training, the validation loss shown
+in Figure 2c exhibits a double descent behavior with an initial decrease, then a growth before rapidly
+decreasing to zero.
+Seemingly, some of these observations can be explained by the arguments in [19] and their extensions
+to adaptive optimizers [22]. Namely, at the point of reaching perfect classification of the training set,
+the cross-entropy (CE) loss by design pressures the classification layer to grow in norm at relatively
+fast rate. Simultaneously, the implicit bias of the optimizer coupled with the CE loss, pushes the
+direction of the classification layer to coincide with that of the maximum margin classifier, albeit at a
+much slower rate.
+
+
+ 4
+These insights motivate us to measure the classifier’s last layer norm during training. We observe in
+Figure 2a that once classification reaches perfect accuracy on the training set, the classification layers
+norm exhibits a distinct cyclic behavior, alternating between rapid growth and plateau, with a sharp
+phase transition between phases. Simultaneously, the training loss retains a low value in periods of
+rapid norm growth, and then wildly fluctuating in periods of norm plateau. Figure 2e and Figure 2f
+shows the evolution of the relative change in features output by each layer in the Transformer. We
+observe that the feature maps are not updated much during the norm growth phase. However, at the
+phase transition, we observe that the feature maps receive a rapid update, which suggests that the
+internal representation of the model is updating.
+
+
+Is Slingshot a general phenomenon? In an attempt to ascertain the generality of Slingshot Ef-
+fects as an optimization artifact, we run similar experiments with additional architectures, datasets,
+optimizers, and hyperparameters. We use all algorithmic datasets as proposed in [17], as well as
+frequently used vision benchmarks such as CIFAR-10 [10], and even synthetic Gaussian dataset. For
+architectures, we use Transformers, MLPs and deep linear models (see figure 1). We find abundant
+evidence of Slingshot Effects in all of our experiments with Adam, AdamW and RMSProp. We
+are unable to observe Slingshot Effects with Adagrad [6] and also with stochastic gradient descent
+(SGD) or SGD with momentum, pointing to the generality of the mechanism across architectures and
+datasets. We refer the reader to Appendix A for the full, detailed description of the experiments.
+
+Why does Slingshot happen? We hypothesize that the norm growth continues until the curvature
+of the loss surface becomes large, effectively “flinging" the weights to a different region in parameter
+space as small gradient directions get amplified, reminiscent of the mechanics of a slingshot flinging a
+projectile. We attempt to quantify how far a model is flung by measuring the cosine distance between
+a checkpoint during optimization and initial parameters. Specifically, we divide the model parameters
+into representation (pre-classifier) parameters and classifier (last layer) parameters and calculate how
+far these parameters have moved from initialization. We show that checkpoints collected after a
+model experiences Slingshot has a larger representation cosine distance. We defer the reader to the
+appendix for further details.
+ update sharpness last layer norm update sharpness last layer norm
+ 2.5
+ 500 2.0
+ 400 2.0 400
+ 1.5
+
+
+ last layer norm last layer norm
+ 300 1.5 300
+ sharpness 200 1.0 sharpness 200
+ 1.0
+
+ 100 0.5 100 0.5
+
+ 0 0.0 0 0.0
+ 0 10000 20000 30000 40000 50000 0 10000 20000 30000 40000 50000
+ epoch epoch
+ (a) (c)
+ update sharpness last layer norm update sharpness last layer norm
+ 500 2.5
+ 300
+ 1.75
+ 250 400 2.0
+ 1.50
+ 200
+
+
+ last layer norm
+ 1.25
+
+ last layer norm
+ 300 1.5
+ sharpness sharpness
+ 150 1.00
+ 200 1.0
+ 100 0.75
+ 0.50 100
+ 50 0.5
+ 0.25
+ 0 0.00 0 0.0
+ 0 10000 20000 30000 40000 0 10000 20000 30000 40000 50000
+ epoch epoch
+ (b) (d)
+Figure 3: Curvature metric (denoted as "update sharpness") evolution vs norm growth on (a) addition, (b)
+subtraction, (c) multiplication, and (d) division dataset. Note the spike in the sharpness metric near the phase
+transitions between norm growth and plateau.
+
+By design, adaptive optimizers adapt the learning rate on a per parameter basis. In toy, convex
+scenarios, the  parameter provably determine whether the algorithm will converge stably. To
+
+
+ 5
+illustrate this, we take inspiration from [4], and consider a quadratic cost function L(A, B, C) =
+1 > > d×d
+2 x Ax + B x + C, A ∈ R , x, B ∈ Rd , C ∈ R, where we assume A is symmetric and positive
+definite. Note that the global minimum of this cost is given by x? = −A−1 B. The gradient of
+this cost with respect to x is given by g = Ax + B. Consider optimizing the cost with adaptive
+ g Axt +B
+optimization steps of the simple form xt+1 = xt − µ |g|+ = xt − µ |Ax t +B|+
+ where µ is a learning
+rate, and the division and absolute operations are taken element wise. Starting from some x0 , the
+error et = xt − x? evolves according to:
+ 1  def
+ et+1 = I − µdiag( )A et = Mt et (1)
+ |Aet | + 
+
+Note that the condition kAks < 2 µ where k · ks denotes the spectral norm, implies that the mapping
+Mt is a contraction for all values of t, and hence convergence to the global optimum is guaranteed
+(This is in contrast to gradient descent, where the requirement is kAks < µ2 ). Note that the choice
+of  crucially controls the requirement on the curvature of the cost, represented by the the spectrum
+of A in this case. In other words, the smaller , the more restrictive the requirements on the top
+eigenvalue of A. In [4], it was observed that full batch gradient descent increases the spectral norm
+of the hessian to its maximum allowed value. We therefore hypothesize that for deep networks, a
+small value for  requires convergence to a low curvature local minimum, causing a Slingshot Effect
+when this does not occur. Moreover, we may reasonably predict that increasing the value of  would
+lift the restriction on the curvature, and with it evidence of Slingshot Effects.
+Figure 3 shows evidence consistent with the hypothesis that Slingshot Effects occur in the vicinity of
+high loss curvature, by measuring the local loss surface curvature along the optimization trajectory.
+Let Ht denote the local hessian matrix of the loss, and ut the parameter update at time t given the
+optimization algorithm of choice. We use the local curvature along the trajectory of the optimizer,
+given by ku1t k2 u>
+ t Ht ut , as a curvature measure. Across the arithmetic datasets from [17], whenever
+the last layer weight norm plateaus, the curvature measure momentarily peaks and settles back down.
+
+Varying  We next observe from Figure 2a that the training loss value also spikes up around the
+time step when the weight norm transitions from growth to plateau. A low training loss value suggests
+that the gradients (and their moments) used as inputs to the optimizer are small, which in turn can
+cause the  hyperparameter value to play a role in calculating updates. Our hypothesis here is that the
+Slingshot Effect should eventually disappear with a sufficiently large . To confirm this hypothesis,
+we run an experiment where we vary  while retaining the rest of the setup described in the previous
+section.
+Figure 4 shows the results for various values of  considered in this experiment. We first observe that
+the number of Slingshot Effect cycles is higher for smaller values of . Secondly, smaller values of 
+cause grokking to appear at an earlier time step when compared to larger values. More intriguingly,
+models that show signs of grokking also experience Slingshot Effects while models that do not
+experience Slingshot Effects do not show any signs of grokking. Lastly, the model trained with the
+largest  = 10−5 shows no sign of generalization even after receiving 500K updates.
+
+3.2 Effects on Generalization
+
+In order to understand the relationship between Slingshot Effects and neural networks generalization,
+we experiment with various models and datasets. We observe that models that exhibit Slingshot tend
+to generalize better, which suggests the benefit of training models for a long time with Adam [9] and
+AdamW [12]. More surprisingly, we observe that Slingshots and grokking tend to come in tandem.
+
+Transformers with algorithmic datasets We follow the setting in Power et al. [17] and generate
+several datasets that represent algorithmic operations and consider several training and validation
+splits. This dataset creation approach is consistent with the methodology used to demonstrate
+grokking [17]. The Transformer is trained with AdamW [12] with a learning rate of 0.001, weight
+decay set to 0, and with learning rate warmup for 500K steps. We consider  of AdamW as a
+hyperparameter in this experiment. Figure 5 summarizes the results for this experiment where the
+x-axis indicates the algorithmic operation followed by the training data split size. As can be seen
+in Figure 5, Slingshot Effects are seen with lower values of  and disappear with higher values of 
+
+
+ 6
+  = 10−08  = 10−07  = 10−05
+ train loss last layer norm train loss last layer norm train loss last layer norm
+ 101 101 0.16
+ 100 2.00
+ 1.0
+ 1.75 10 1 0.14
+ 10 1
+ 10 2 0.8
+ 1.50
+
+
+ last layer norm
+ 10 3
+
+ last layer norm
+ 0.12
+
+ last layer norm
+ 10 4 1.25 10 3
+ loss loss 0.6 loss
+ 1.00 10 5 0.10
+ 10 6
+ 0.75 0.4 10 5
+ 10 8 10 7 0.08
+ 0.50
+ 0.2
+ 0.25 10 9 10 7 0.06
+ 10 10
+ 0.00
+ 0 10000 20000 30000 40000 50000 0 10000 20000 30000 40000 500000.0 0 10000 20000 30000 40000 50000
+ epoch epoch epoch
+
+ (a) (b) (c)
+ training loss vs epochs
+ validation loss last layer norm validation loss last layer norm
+ validation loss last layer norm
+ 2.00 101 0.16
+ 1.0
+ 101 1.75
+ 6 × 100 0.14
+ 1.50 0.8
+
+
+ last layer norm
+ 100
+
+ last layer norm last layer norm
+ 1.25 0.12
+ 100 loss 0.6
+ loss 1.00 loss 4 × 100 0.10
+ 0.75 10 1
+ 0.4
+ 10 1 0.50 0.08
+ 3 × 100
+ 10 2 0.2
+ 0.25 0.06
+ 0.00
+ 10 2 0 10000 20000 30000 40000 50000 0 10000 20000 30000 40000 500000.0 0 10000 20000 30000 40000 50000
+ epoch epoch epoch
+
+ (d) (e) (f)
+ validation loss vs epochs
+ train accuracy last layer norm train accuracy last layer norm train accuracy last layer norm
+ 100 100 100 0.16
+ 2.00
+ 1.0
+ 80 1.75 80 80 0.14
+ 1.50 0.8
+
+
+ last layer norm last layer norm last layer norm
+ 60 1.25 60 60 0.12
+
+ accuracy accuracy accuracy
+ 0.6
+ 1.00 0.10
+ 40 40 40
+ 0.75 0.4
+ 0.08
+ 20 0.50 20 20
+ 0.2
+ 0.25 0.06
+ 0 0.00 0 0
+ 0 10000 20000 30000 40000 50000 0 10000 20000 30000 40000 500000.0 0 10000 20000 30000 40000 50000
+ epoch epoch epoch
+
+ (g) (h) (i)
+ training accuracy vs epochs
+ validation accuracy last layer norm validation accuracy last layer norm validation accuracy last layer norm
+ 100 100 1.75 0.16
+ 2.00
+ 1.0 1.50
+ 80 1.75 80 0.14
+ 1.50 0.8 1.25
+
+
+ last layer norm last layer norm last layer norm
+ 60 1.25 60 0.12
+ accuracy
+ 1.00
+ accuracy accuracy
+ 0.6
+ 1.00 0.75 0.10
+ 40 40
+ 0.75 0.4
+ 0.50 0.08
+ 20 0.50 20
+ 0.2 0.25
+ 0.25 0.06
+ 0 0.00 0 0.00
+ 0 10000 20000 30000 40000 50000 0 10000 20000 30000 40000 500000.0 0 10000 20000 30000 40000 50000
+ epoch epoch epoch
+
+ (j) (k) (l)
+ validation accuracy vs epochs
+Figure 4: Varying  in Adam on the Division dataset. Observe that as  increases, there is no Slingshot Effect or
+grokking behavior. Figure (a) corresponds to default  suggested in [9] where the model trained with smallest
+value undergoes multiple Slingshot cycles.
+
+
+
+which confirms the observations made in Section 3 with modular division dataset. In addition, models
+that exhibit Slingshot Effects and grokking (shown in green) tend to generalize better than models
+that do not experience Slingshot Effects and grokking (shown in red).
+
+ViT with CIFAR-10 For further validation of Slingshot Effects and generalization, we train a
+Vision Transformer (ViT) [5] on CIFAR-10 [10]. The ViT consists of 12 layers, width 384 and
+12 attention heads trained on fixed subsets of CIFAR-10 dataset [10]. The ViT model described
+above is trained with 10K, 20K, 30K, 40K and 50K (full dataset) training samples. We train the
+models with the following learning rates: 10−04 , 3.10e−04 4 and 10−03 and with a linear learning
+rate warmup for the 1 epoch of optimization. We consider multiple learning rates to study the impact
+of this hyperparameter on Slingshot taking inspiration from [17] where the authors report observing
+
+
+ 7
+ No Slingshot Effects, no grokking Slingshot Effects, no grokking Slingshot Effects and grokking
+
+
+
+
+Figure 5: Extended analysis on multiple grokking datasets. Points shown in green represent both Slingshot
+Effects and grokking, points shown blue indicate Slingshot Effects but not grokking while points in red indicate
+no Slingshot Effects and no grokking.  in Adam is varied as shown in text. Observe that as  increases, there
+are no Slingshot Effects or grokking behavior.
+
+
+grokking over a narrow range of learning rates . Figure 6 shows a plot of the highest test accuracy for
+a set of hyperparameters (learning rate, number of training samples) as a function of the number of
+training samples from which we make the following observations. The best test accuracy for a given
+set of hyperparameters is typically achieved after Slingshot phase begins during optimization. The
+checkpoints that achieve the highest test accuracy are labeled as "post-slingshot" and shown in green
+in Figure 6. While post-Slingshot checkpoints seem to enjoy higher test accuracy, there are certain
+combinations of hyperparameters that lead to models that show better test accuracy prior to the start
+of the first Slingshot phase. We label these points as "pre-slingshot" (shown in blue) in Figure 6. The
+above observations appear to be consistent with our finding that training long periods of time may
+lead to better generalization seen with grokking datasets [17].
+
+Non-Transformer Models We conduct experiments with MLPs on synthetic data where the syn-
+thetic data is a low dimensional embedding projected to higher dimensions via random projections.
+This design choices is critical with showing the existence of the Slingshot Effect with synthetically
+generated data. We find that using low dimensional data does not lead to any Slingshots. With this
+dataset, we show that generalization occurs late in training with Adam. Specifically, we tune  in
+Adam and show that the optimizer is highly sensitive to this hyperparameter. These observations are
+consistent with the behavior reported above with Transformers and on algorithmic datasets as well as
+standard vision benchmark such as CIFAR-10. We refer the reader to Appendix A.1 for complete
+description and details of these experiments.
+
+3.3 Drawbacks and Limitations
+
+While the Slingshot Mechanism exposes an interesting implicit bias of Adam that often promotes
+generalization, due to it’s arresting of the norm growth and ensuing feature learning, it also leads to
+some training instability and prolonged training time. In the Appendix we show that it is possible to
+achieve similar levels of generalization with Adam on the modular division dataset [17] using the
+same Transformer setup as above, while maintaining stable learning, in regimes that do not show
+a clear Slingshot Effect. First we employ weight decay, which causes the training loss values to
+converge to a higher value than the unregularized model. In this regime the model does not become
+unstable, but instead regularization leads to comparable generalization, and much more quickly.
+However, it is important to tune the regularization strength appropriately. Similarly, we find that it is
+
+
+ 8
+ 1e-04
+ no slingshot 3e-04
+ 75 pre-slingshot
+ 3e-041e-04
+ post-slingshot
+ 3e-04 1e-03
+ 70 1e-04 1e-03
+
+
+
+ test accuracy
+ 1e-04 1e-03
+ 65
+ 3e-04
+ 1e-03
+ 60
+ 1e-04
+ 55 3e-04
+ 1e-03
+ 10 15 20 25 30 35 40 45 50
+ number of training samples (x1000)
+
+Figure 6: Slingshot Effects on subsets of CIFAR-10 dataset. We train ViTs with multiple learning rates to verify
+the impact this parameter has on Slingshot. Power et al [17] note that grokking occurs over a narrow range of
+learning rates. Note that the points marked in: (i) green correspond to test accuracy for an experiment after the
+Slingshot Effect begins, (ii) blue are for trials where best checkpoint is observed prior to start of a Slingshot
+Effect and (iii) red are for trials with no Slingshot Effect.
+
+
+
+possible to normalize the features and weights using the following scheme to explicitly control norm
+growth: w = kwk w
+ , f (x) = kff (x)
+ (x)k , where w and f (x) are the weights and inputs to the classification
+layer respectively, the norm used above is the L2 norm, and x is the input to the neural network. This
+scheme also results in stable training and similar levels of generalization. In all cases the effects rely
+on keeping the weight norms from growing uncontrollably, which may be the most important factor
+for improving generalization. These results suggest that while the Slingshot Mechanism may be an
+interesting self-correcting scheme for controlling norm growth, there are likely more efficient ways
+to leverage adaptive optimizers to similar levels of generalization without requiring the instability
+that is a hallmark of the Slingshot effect.
+Finally, we lack a satisfactory theoretical explanation for the Slingshot Mechanism, and hence
+removed all attempts at a more rigorous mathematical definition, which we feel would only serve as a
+distraction.
+
+
+4 Conclusion
+
+We have empirically shown that optimizing deep networks with cross entropy loss and adaptive
+optimizers produces the Slingshot Mechanism, a curious optimization anomaly unlike anything
+described in the literature. We have provided ample evidence that Slingshot Effects can be observed
+with different neural architectures and datasets. Furthermore, we find that Grokking [17] almost
+always occurs in the presence of Slingshot Effects and associated regions of instability in the Terminal
+Phase of Training (TPT). These results in their pure form absent explicit regularization, reveal an
+intriguing inductive bias of adaptive gradient optimizers that becomes salient in the TPT, characterized
+by cyclic stepwise effects on the optimization trajectory. These effects often promote generalization
+in ways that differ from non-adaptive optimizers like SGD, and warrant further study to be able
+to harness efficiently. There are open question remaining to be answered, for instance 1) What’s
+the causal factor of the plateau of weight norm growth? 2) Are there better ways of promoting
+generalization without relying on this accidental training instability? Answering these questions w ill
+allow us to decouple optimization and regularization, and ultimately to control and improve them
+independently.
+
+
+References
+ [1] Zeyuan Allen-Zhu, Yuanzhi Li, and Zhao Song. A convergence theory for deep learning via
+ over-parameterization. ArXiv, abs/1811.03962, 2019.
+
+
+ 9
+ [2] Anas Barakat and Pascal Bianchi. Convergence and dynamical behavior of the adam algorithm
+ for nonconvex stochastic optimization. SIAM J. Optim., 31:244–274, 2021.
+ [3] James Bradbury, Roy Frostig, Peter Hawkins, Matthew James Johnson, Chris Leary, Dougal
+ Maclaurin, George Necula, Adam Paszke, Jake VanderPlas, Skye Wanderman-Milne, and Qiao
+ Zhang. JAX: composable transformations of Python+NumPy programs. 2018.
+ [4] Jeremy M. Cohen, Simran Kaur, Yuanzhi Li, J. Zico Kolter, and Ameet Talwalkar. Gradient
+ descent on neural networks typically occurs at the edge of stability. arXiv preprint arXiv:
+ Arxiv-2103.00065, 2021.
+ [5] Alexey Dosovitskiy, Lucas Beyer, Alexander Kolesnikov, Dirk Weissenborn, Xiaohua Zhai,
+ Thomas Unterthiner, Mostafa Dehghani, Matthias Minderer, Georg Heigold, Sylvain Gelly,
+ Jakob Uszkoreit, and Neil Houlsby. An image is worth 16x16 words: Transformers for image
+ recognition at scale. arXiv preprint arXiv: Arxiv-2010.11929, 2020.
+ [6] John Duchi, Elad Hazan, and Yoram Singer. Adaptive subgradient methods for online learning
+ and stochastic optimization. Journal of Machine Learning Research, 12(61):2121–2159, 2011.
+ [7] Elad Hoffer, Itay Hubara, and Daniel Soudry. Train longer, generalize better: closing the
+ generalization gap in large batch training of neural networks. ArXiv, abs/1705.08741, 2017.
+ [8] Sergey Ioffe and Christian Szegedy. Batch normalization: Accelerating deep network training
+ by reducing internal covariate shift. In International conference on machine learning, pages
+ 448–456. PMLR, 2015.
+ [9] Diederik P. Kingma and Jimmy Ba. Adam: A method for stochastic optimization. arXiv preprint
+ arXiv: Arxiv-1412.6980, 2014.
+[10] Alex Krizhevsky. Learning multiple layers of features from tiny images. 2009.
+[11] Aitor Lewkowycz, Yasaman Bahri, Ethan Dyer, Jascha Sohl-Dickstein, and Guy Gur-Ari.
+ The large learning rate phase of deep learning: the catapult mechanism. arXiv preprint
+ arXiv:2003.02218, 2020.
+[12] Ilya Loshchilov and Frank Hutter. Decoupled weight decay regularization. arXiv preprint
+ arXiv:1711.05101, 2017.
+[13] Kaifeng Lyu and Jian Li. Gradient descent maximizes the margin of homogeneous neural
+ networks. arXiv preprint arXiv:1906.05890, 2019.
+[14] Vardan Papyan, X. Y. Han, and David L. Donoho. Prevalence of neural collapse during the
+ terminal phase of deep learning training. Proceedings of the National Academy of Sciences of
+ the United States of America, 117:24652 – 24663, 2020.
+[15] Adam Paszke, Sam Gross, Francisco Massa, Adam Lerer, James Bradbury, Gregory Chanan,
+ Trevor Killeen, Zeming Lin, Natalia Gimelshein, Luca Antiga, Alban Desmaison, Andreas
+ Kopf, Edward Yang, Zachary DeVito, Martin Raison, Alykhan Tejani, Sasank Chilamkurthy,
+ Benoit Steiner, Lu Fang, Junjie Bai, and Soumith Chintala. Pytorch: An imperative style, high-
+ performance deep learning library. In H. Wallach, H. Larochelle, A. Beygelzimer, F. d'Alché-
+ Buc, E. Fox, and R. Garnett, editors, Advances in Neural Information Processing Systems 32,
+ pages 8024–8035. Curran Associates, Inc., 2019.
+[16] F. Pedregosa, G. Varoquaux, A. Gramfort, V. Michel, B. Thirion, O. Grisel, M. Blondel,
+ P. Prettenhofer, R. Weiss, V. Dubourg, J. Vanderplas, A. Passos, D. Cournapeau, M. Brucher,
+ M. Perrot, and E. Duchesnay. Scikit-learn: Machine learning in Python. Journal of Machine
+ Learning Research, 12:2825–2830, 2011.
+[17] Alethea Power, Yuri Burda, Harri Edwards, Igor Babuschkin, and Vedant Misra. Grokking:
+ Generalization beyond overfitting on small algorithmic datasets. In ICLR MATH-AI Workshop,
+ 2021.
+[18] Karen Simonyan and Andrew Zisserman. Very deep convolutional networks for large-scale
+ image recognition. arXiv preprint arXiv: Arxiv-1409.1556, 2014.
+
+
+ 10
+[19] Daniel Soudry, Elad Hoffer, Mor Shpigel Nacson, Suriya Gunasekar, and Nathan Srebro. The
+ implicit bias of gradient descent on separable data. The Journal of Machine Learning Research,
+ 19(1):2822–2878, 2018.
+[20] Tijmen Tieleman and Geoffrey Hinton. Lecture 6.5-rmsprop, coursera: Neural networks for
+ machine learning. University of Toronto, Technical Report, 6, 2012.
+[21] Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones, Aidan N. Gomez,
+ Lukasz Kaiser, and Illia Polosukhin. Attention is all you need. arXiv preprint arXiv: Arxiv-
+ 1706.03762, 2017.
+[22] Bohan Wang, Qi Meng, Wei Chen, and Tie-Yan Liu. The implicit bias for adaptive optimization
+ algorithms on homogeneous neural networks. In International Conference on Machine Learning,
+ pages 10849–10858. PMLR, 2021.
+[23] J. Zhang, Tianxing He, Suvrit Sra, and Ali Jadbabaie. Why gradient clipping accelerates
+ training: A theoretical justification for adaptivity. arXiv: Optimization and Control, 2020.
+
+
+
+
+ 11
+ The Slingshot Mechanism: An Empirical Study of
+Adaptive Optimizers and the Grokking Phenomenon -
+ Appendix
+Contents
+
+1 Introduction 1
+ 1.1 Implications of Our Findings . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3
+
+2 Related Work 3
+
+3 The Slingshot Mechanism 4
+ 3.1 Experimental Setup . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 4
+ 3.2 Effects on Generalization . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 6
+ 3.3 Drawbacks and Limitations . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 8
+
+4 Conclusion 9
+
+Appendix A Slingshot Effects across Architectures, Optimizers and Datasets 13
+ A.0.1 Vision Transformers on 1000 samples from CIFAR-10 . . . . . . . . . . . 13
+ A.0.2 CNN on 200 samples from CIFAR-10 . . . . . . . . . . . . . . . . . . . . 14
+ A.0.3 MLPs on 200 samples from CIFAR-10 . . . . . . . . . . . . . . . . . . . 14
+ A.0.4 Deep linear models . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 15
+ A.0.5 Different Optimizers . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 15
+ A.1 Slingshot with MLP and Synthetic Dataset . . . . . . . . . . . . . . . . . . . . . . 16
+ A.1.1 Abalation Study . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 16
+
+Appendix B Slingshot and Grokking 20
+ B.1 Analysis of Parameter Dynamics . . . . . . . . . . . . . . . . . . . . . . . . . . . 20
+ B.2 SGD Optimization . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 23
+ B.3 Slingshots with Additional Datasets . . . . . . . . . . . . . . . . . . . . . . . . . 24
+
+Appendix C Controlling Instability Through Normalization and Norm Constraints 32
+ C.1 Weight decay . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 32
+ C.2 Features and parameter normalization . . . . . . . . . . . . . . . . . . . . . . . . 34
+
+
+
+
+ 12
+A Slingshot Effects across Architectures, Optimizers and Datasets
+
+This section provides further evidence of the prevalence of Slingshot across architectures and
+optimizers on subsets of CIFAR-10, testing setups beyond the specific setup consider by Power
+et al. [17]. In these experiments, we focus solely on characterizing the optimization properties of
+various setups described below. The small sample sizes are used in order to more easily find regimes
+where different architectures can converge to fit the training data fairly quickly.
+We use cross-entropy loss to optimize the models with AdamW [12] in the following experiments.
+The following experiments are implemented in PyTorch [15].
+
+ train loss last layer norm train acc last layer norm
+ 0.20 100.00 0.20
+ 10 2
+ 99.75
+ 0.18 0.18
+ 99.50
+
+
+ last layer norm
+ 10 4
+
+ last layer norm
+ 0.16
+ accuracy
+ 99.25 0.16
+ loss
+ 10 6 99.00
+ 0.14 0.14
+ 98.75
+ 10 8 0.12 98.50 0.12
+ 98.25
+ 1000 1200 1400 1600 1800 2000 1000 1200 1400 1600 1800 2000
+ epoch epoch
+ (a) (b)
+Figure 7: Vision Transformer on 1000 samples from CIFAR-10: Norm growth versus a) loss on training data b)
+accuracy on training data for a ViT trained on 1000 samples.
+
+
+
+A.0.1 Vision Transformers on 1000 samples from CIFAR-10
+
+For further validation, we train a Vision Transformer (ViT) [5] with 12 layers that has 10 million
+parameters on a small sample of the CIFAR-10 dataset [10]. In this setup, we use a learning rate to
+0.001, no weight decay, β1 = 0.9, β2 = 0.95,  = 1e − 08 and minibatch size of 128. We choose
+a sample size of 1000 training samples for computational reasons, as we wish to observe multiple
+cycles of the Slingshot Mechanism extremely late in training. The input images are standardized to
+be in the range [0, 1]. No data augmentation is used in our training pipeline. Due to the extremely
+small sample size, we focus our attention on the training metrics since no generalization is expected.
+Figure 7a (respectively Figure 7b) shows a plot of training loss (respectively training accuracy) and
+last layer norm evolution during the latter stages of training. Multiple Slingshot stages are observed
+in these plots (5 clear cycles), which can be seen by the sharp transition of the weight norm from
+high growth to plateau.
+
+ train loss last layer norm train acc last layer norm
+ 102 9 100 9
+
+ 100 8 8
+ 80
+ 7 7
+
+ last layer norm
+ 10 2
+
+ last layer norm
+ accuracy
+ 60
+ loss 10 4 6 6
+
+ 10 6 5 40 5
+
+ 10 8 4 20 4
+ 3 3
+ 0 1000 2000 3000 4000 5000 0 1000 2000 3000 4000 5000
+ epoch epoch
+ (a) (b)
+Figure 8: CNN on CIFAR-10 dataset: Norm growth versus a) loss on training data b) accuracy on training data
+for a VGG11-like model without batch normalization trained on 200 samples.
+
+
+
+ 13
+A.0.2 CNN on 200 samples from CIFAR-10
+We consider a VGG-like architecture [18] that has been adapted for CIFAR-10 dataset.1 The model
+is trained with 200 randomly chosen samples from CIFAR-10 training split and with full-batch
+AdamW [12]. The hyperparameters used for the optimizer include a learning rate of 0.001, weight
+decay= 0, β1 = 0.9, β2 = 0.95, and  = 1e − 08. As with ViT, no data augmentation is used in these
+experiments other than standardizing the input to be in the range [0, 1]. We observe the prescenece of
+multiple Slingshot stages with CNN from Figure 8a and Figure 8b. These experiments suggest that
+Slingshot Effects are not restricted to Transformers architecture alone.
+
+ train loss last layer norm train acc last layer norm
+ 1200 100 1200
+ 100
+ 1000 80 1000
+ 10 2
+ 800
+
+ last layer norm
+ 800
+
+ last layer norm
+ accuracy
+ 10 4 60
+ loss 600 600
+ 10 6 400 40 400
+
+ 10 8 200 200
+ 20
+ 0 0
+ 0 1000 2000 3000 4000 5000 0 1000 2000 3000 4000 5000
+ epoch epoch
+ (a) (b)
+Figure 9: CNN on 200 samples from CIFAR-10: Norm growth versus a) loss on training data b) accuracy on
+training data for a VGG11-like model without batch normalization trained on 200 samples.
+
+
+With BatchNorm We repeat the CNN-based described above but with a VGG-like model that
+includes batch normalization [8].2 The training setup is identical to the one described for CNN
+wihtout batch normalization. We observe the prescenece of multiple Slingshot stages with CNN from
+Figure 9a and Figure 9b. The weight norm does not decrease during training as opposed to the weight
+norm dynamics for CNN wihtout batch normalization seen in Figure 8. These experiments suggest
+that Slingshot Effects can be seen with standard neural network training components including batch
+normalization.
+ train loss last layer norm train acc last layer norm
+
+ 100 100.0
+ 0.0785 97.5 0.0785
+ 10 2
+ 95.0
+
+
+ last layer norm last layer norm
+ 0.0780 0.0780
+
+ accuracy
+ 10 4 92.5
+ loss
+ 0.0775 90.0 0.0775
+ 10 6
+ 87.5
+ 0.0770 0.0770
+ 10 8 85.0
+ 0.0765 0.0765
+ 1000 1200 1400 1600 1800 2000 1000 1200 1400 1600 1800 2000
+ epoch epoch
+ (a) (b)
+Figure 10: MLP on 200 samples from CIFAR-10: Norm growth versus a) loss on training data b) accuracy on
+training data for a model trained on 200 samples.
+
+
+A.0.3 MLPs on 200 samples from CIFAR-10
+The next architecture we consider is a deep (6 layers) fully connected network trained on a small
+sample of 200 samples belonging to the CIFAR-10 dataset [10] with full-batch AdamW [12] optimizer.
+The optimizer’s hyperparameters are set as following: learning rate = 0.001, weight decay = 0, β1 =
+ 1
+ We use the VGG11 architecture without batch normalization [8] from https://github.com/kuangliu/
+pytorch-cifar in this experiment.
+ 2
+ We use the VGG11 architecture with batch normalization [8] from https://github.com/kuangliu/
+pytorch-cifar in this experiment.
+
+
+ 14
+ train loss last layer norm train loss last layer norm train loss last layer norm
+
+ 8 102
+ 100 12 100 12
+ 100
+ 10 2 7 10 10
+ 10 1
+
+
+ last layer norm last layer norm last layer norm
+ 10 2
+ 10 4 6
+ loss loss 10 4 8 loss 8
+ 10 2
+ 10 6 5
+ 10 6 6 6
+ 10 3
+ 10 8 4
+ 10 8 4 4
+ 10 4
+ 0 2500 5000 7500 10000 12500 15000 17500 20000 3 0 2500 5000 7500 10000 12500 15000 17500 20000 0 2500 5000 7500 10000 12500 15000 17500 20000
+ epoch epoch epoch
+
+ (a) (c) (e)
+ train acc last layer norm train acc last layer norm train acc last layer norm
+ 100 100 100
+ 8 12 12
+ 80 7 80 80
+ 10 10
+
+
+ last layer norm last layer norm last layer norm
+ 60
+ accuracy accuracy accuracy
+ 6 60 60
+ 8 8
+ 40 5 40 40
+ 6 6
+ 20 4
+ 20 4 20 4
+ 0 2500 5000 7500 10000 12500 15000 17500 20000 3 0 2500 5000 7500 10000 12500 15000 17500 20000 0 2500 5000 7500 10000 12500 15000 17500 20000
+ epoch epoch epoch
+
+ (b) (d) (f)
+Figure 11: Optimizer choice on deep linear models on 200 samples from CIFAR-10: (a) Training loss for
+AdamW (b) Training accuracy for AdamW (c) Training loss for RMSProp (d) Training accuracy for RMSProp
+(e) Training loss for Gradient Descent and (f) Training accuracy for Gradient Descent. All optimizers train a
+6-layer linear model full-batch on 200 CIFAR-10 samples.
+
+
+
+ Table 1: Optimizers hyperparameters. Learning rate is set to 0.001 and weight decay to 0 for all optimizers
+ Optimizer Other hyperparameters
+ Adam β1 = 0.9, β2 = 0.95
+ RMSProp α = 0.95, momentum=0.0
+ GD momentum=0.9
+
+
+
+0.9, β2 = 0.95, and  = 1e − 08. As with the ViT setup above we do no use data augmentation for
+training this model. Figure 10a (respectively Figure 10ab) shows a plot of training loss (respectively
+training accuracy) and last layer norm evolution during the latter stages of training. Multiple
+Slingshot stages are observed in this setup as well. These experiments further suggest that the
+Slingshot mechanism is prevalent in simple models as well.
+
+
+A.0.4 Deep linear models
+
+We train a 6 layer linear model with 200 samples belonging to CIFAR-10 [10] with full-batch
+AdamW [12]. The optimizer’s hyperparameters are set as following: learning rate = 0.001, weight
+decay = 0, β1 = 0.9, β2 = 0.95, and  = 1e − 08. Figure 11a and Figure 11b show the training loss
+and accuracy behavior observed during optimization. Multiple Slingshot stages are observed with
+this architecture as well.
+
+
+A.0.5 Different Optimizers
+
+In this set of experiments, we study the training loss behavior of deep linear models optimized
+full-batch with AdamW [12], RMSProp [20] and full-batch gradient descent (GD). The six layer
+model is trained with 200 samples. The hyperparameters used for optimizing the model with various
+optimizers are described in Table 1. Figure 11 shows the training loss and accuracy behavior of the
+three optimizers considered in this experiment. We observe Slingshot behavior with AdamW and
+RMSProp from Figure 11 while Slingshot behavior is absent with standard gradient descent. This
+observation suggests that the normalization used in adaptive optimizers to calculate the update from
+gradients may lead to Slingshot behavior.
+
+
+ 15
+ train loss last layer norm train acc last layer norm gradient sharpness last layer norm
+ 20.0 1.0 20.0 20.0
+ 106
+ 100 17.5
+ 17.5 17.5
+ 0.8 103
+ 10 2 15.0 15.0 15.0
+
+
+ last layer norm last layer norm last layer norm
+ 100
+ 0.6 12.5
+ accuracy sharpness
+ 10 4 12.5 12.5
+ loss 10 3
+ 10.0 10.0 10.0
+ 10 6 0.4
+ 7.5 7.5 10 6 7.5
+ 10 8 5.0 0.2 5.0 10 9 5.0
+ 2.5 2.5 2.5
+ 0.0 0.5 1.0 1.5 2.0 2.5 0.0 0.5 1.0 1.5 2.0 2.5 0.0 0.5 1.0 1.5 2.0 2.5
+ epoch 1e6 epoch 1e6 epoch 1e6
+
+ (a) (c) (e)
+ val loss last layer norm val acc last layer norm update sharpness last layer norm
+ 20.0 0.8 20.0
+ 104 20.0
+ 17.5 0.7 17.5
+ 101 101 17.5
+ 15.0 0.6 15.0 15.0
+ 10 2
+
+
+ last layer norm last layer norm last layer norm
+ 12.5 0.5 12.5
+ accuracy sharpness
+ 12.5
+ loss 10 5
+ 10.0 0.4 10.0 10.0
+ 10 8
+ 7.5 0.3 7.5 7.5
+ 10 11
+ 5.0 0.2 5.0 5.0
+ 10 14
+ 2.5 2.5 2.5
+ 0.0 0.5 1.0 1.5 2.0 2.5 0.0 0.5 1.0 1.5 2.0 2.5 0.0 0.5 1.0 1.5 2.0 2.5
+ epoch 1e6 epoch 1e6 epoch 1e6
+
+ (b) (d) (f)
+Figure 12: Slingshot generalization on synthetic dataset: Norm growth versus a) loss on training data b) accuracy
+on training data (c) loss on validation data d) accuracy on validation data. Note that the vertical line in green
+shows location of maximum test accuracy. Adam hyperparameters are β1 = 0.9, β1 = 0.95,  = 1e−08
+
+
+A.1 Slingshot with MLP and Synthetic Dataset
+
+In this section, we provide empirical evidence that Slingshot Effects are observed with a synthetic
+dataset in a fully-connected architecture. The small dimensional dataset, like the Grokking dataset of
+Power et al. [17], allows us to easily measure of sharpness, given by ku1t k2 u>t Ht ut where ut is the
+optimizer’s update vector and Ht is the Hessian at step t, to examine the interplay between Slingshot
+Effects and generalization.
+
+Vision Transformers and Full CIFAR-10 In Appendix A, we have empirically shown that the
+existence of the Slingshot phenomenon on a small subset of CIFAR-10 dataset [10] with Vision
+Transformers (ViTs). We now study the impact that Slingshot has on the generalization ability of ViTs
+by training a model on all 50000 samples in CIFAR-10 training dataset. The ViT used here is a larger
+model than the one considered in A to account for larger dataset size. The ViT model consists of 12
+layers, width 384 and 12 attention heads and is optimized by AdamW [12]. For this experiment, we
+set the learning rate to 0.0001, weight decay to 0, β1 = 0.9, β1 = 0.95 and  = 10−08 , minibatch size
+of 512 and linear learning rate warmup for 1 epoch of optimization. Figure 13 shows the results of
+experiment with full CIFAR-10 dataset. Multiple Slingshots can be observed in these plots similar to
+the plots described in Appendix A. We observe from Figure 13d that the test accuracy peaks in epochs
+following a Slingshot with the maximum recorded test accuracy occurring very late in optimization.
+This observation suggests that the Slingshot can have a favorable effect on generalization consistent
+with the behavior observed in the main paper with division dataset.
+
+A.1.1 Abalation Study
+In this section, we train a toy model on a synthetically generated dataset with the aim of analysing the
+effect of different hyper parameters on the Slingshot Mechanism. We construct a 128-dimensional
+dataset with Scikit-learn [16] that has 3 informative dimensions that represents a 8-class classification
+problem. The class centers are the edges of a 3-dimensional hypercube around which clusters are
+data are sampled from a standard normal distribution. The other 125-dimensions are also filled at
+random to create a high-dimensional dataset used in our experiments. We generate 256 training and
+validation samples for this dataset and use a minibatch size of 128 in all the experiments described in
+the following.
+
+Architecture and Optimizer Figure 12 shows the training and validation metrics when we opti-
+mize a 4-layer fully-connected network (FCN) with Adam using a learning rate of 0.001, β1 = 0.9,
+
+
+ 16
+ train loss last layer norm train acc last layer norm
+
+ 1.6 100 1.6
+ 10 1 1.4 90 1.4
+ 10 3 1.2 80 1.2
+
+
+ last layer norm last layer norm
+ 1.0 70 1.0
+ accuracy
+ 10 5
+ loss 0.8 0.8
+ 60
+ 10 7 0.6 0.6
+ 50
+ 10 9 0.4 0.4
+ 40 0.2
+ 0.2
+ 10 11 30
+ 0.0 0.0
+ 0 2000 4000 6000 8000 10000 0 2000 4000 6000 8000 10000
+ epoch epoch
+ (a) (c)
+ test loss last layer norm test acc last layer norm
+ 80
+ 1.6 1.6
+ 101 75
+ 1.4 1.4
+ 70
+ 1.2 1.2
+ 65
+
+
+ last layer norm last layer norm
+ 1.0 1.0
+ accuracy
+ 60
+ loss 0.8 0.8
+ 55 0.6
+ 0.6
+ 50 0.4
+ 0.4
+ 0.2 45 0.2
+ 100
+ 0.0 40 0.0
+ 0 2000 4000 6000 8000 10000 0 2000 4000 6000 8000 10000
+ epoch epoch
+ (b) (d)
+Figure 13: Slingshot generalization on full CIFAR-10 dataset: Norm growth versus a) loss on training data b)
+accuracy on training data (c) loss on test data d) accuracy on test data.
+
+
+β1 = 0.95, no weight decay and  = 1e−08 . Note that we use this value of  in our first experiment
+as this is the default value proposed in Kingma and Ba [9]. These experiments are implemented in
+JAX [3].
+
+
+
+ 0.80 adam eps 1e-05
+
+ adam eps 1e-04
+ 0.78 adam eps 1e-06
+ adam eps 1e-08
+ 0.76
+
+
+ validation accuracy
+ adam eps 1e-02
+ adam eps 1e-07
+ 0.74
+ 0.72
+ 0.70
+ 0.68
+ adam eps 1e-03
+ 104 105 106
+ epoch
+Figure 14: Slingshot on syntehtic dataset. Note that the points marked in: (i) green correspond to Adam-trained
+models that undergo Slingshot, (ii) red correspond to Adam-trained models that do not experience Slingshot;
+Adam’s hyperparameters are given by β1 = 0.9, β2 = 0.95, no weight decay and  shown in parentheses.
+
+
+Tuning  In the next set of experiments with synthetic data, we tune  value for Adam to understand
+its impact on test accuracy. Figure 14 shows a plot of the maximum validation accuracy achieved by
+models trained with Adam as a function of time (epoch). We observe that Adam reaches its best test
+accuracy late in optimization with  = 10−5 yielding the highest validation accuracy. Furthermore,
+the best accuracy is achieved with a model that experiences Slingshot during optimization. This
+
+
+ 17
+observation is consistent with our findings for ViT training with CIFAR-10 dataset described in the
+main paper and Appendix A.1.
+
+ loss accuracy sharpness
+ train val last layer norm train val last layer norm
+ gradient update last layer norm
+ 14 1.0 14
+ 14
+ 100 70000
+ 12 0.8 12 12
+ 60000
+ 10 2
+
+
+ last layer norm
+ 10 50000
+
+
+ last layer norm
+ 10
+
+ last layer norm
+ 0.6 10
+ accuracy sharpness
+ loss 10 4 40000
+ 8 8 8
+ 0.4 30000
+ 10 6 6
+ 6 20000 6
+ 10 8 4 0.2 4 10000 4
+ 0
+ 0 20000 40000 60000 80000 100000 0 20000 40000 60000 80000 100000 0 20000 40000 60000 80000 100000
+ epoch epoch epoch
+
+ (a) (b) (c)
+ β1 = 0, β2 = 0. Observe multiple Slingshots
+
+ train val last layer norm train val last layer norm
+ gradient update last layer norm
+ 1.0
+ 16 16
+ 100 120000 16
+ 14 0.8 14
+ 100000 14
+ 10 2 12
+
+ last layer norm
+ 12
+
+ last layer norm
+ 12
+
+ last layer norm
+ 0.6 80000
+ accuracy sharpness
+ loss 10 4 10 10 10
+ 60000
+ 8 0.4 8 8
+ 10 6 40000
+ 6 6 6
+ 10 8 0.2 20000
+ 4 4 4
+ 0
+ 0 20000 40000 60000 80000 100000 0 20000 40000 60000 80000 100000 0 20000 40000 60000 80000 100000
+ epoch epoch epoch
+
+ (d) (e) (f)
+ β1 = 0.5, β2 = 0.5. Observe multiple Slingshots
+
+ train val last layer norm train val last layer norm gradient update last layer norm
+ 1.0 5.5 1.6 5.5
+ 5.5
+ 100 1.4
+ 5.0 0.8 5.0 1.2 5.0
+ 10 2
+
+
+ last layer norm last layer norm
+ 1.0
+
+ last layer norm
+ 4.5 4.5 4.5
+ sharpness
+ 0.6
+ accuracy
+ loss 10 4 0.8
+ 4.0 4.0 0.6 4.0
+ 10 6 0.4
+ 3.5 3.5 0.4 3.5
+ 10 8 0.2 0.2
+ 3.0 3.0 3.0
+ 0.0
+ 0 20000 40000 60000 80000 100000 0 20000 40000 60000 80000 100000 0 20000 40000 60000 80000 100000
+ epoch epoch epoch
+
+ (g) (h) (i)
+ β1 = 0.9, β2 = 0.8. Observe no Slingshot
+
+ train val last layer norm train val last layer norm
+ gradient update last layer norm
+ 16 1.0 16 160000 16
+ 100
+ 14 14 140000
+ 0.8 14
+ 10 2 12 12 120000
+
+
+ last layer norm
+ 12
+
+ last layer norm last layer norm
+ 0.6 100000
+ accuracy
+ 10
+ sharpness
+ loss 10 4 10 10
+ 80000
+ 8 0.4 8 60000 8
+ 10 6
+ 6 6 40000 6
+ 10 8 0.2 20000
+ 4 4 4
+ 0
+ 0 20000 40000 60000 80000 100000 0 20000 40000 60000 80000 100000 0 20000 40000 60000 80000 100000
+ epoch epoch epoch
+
+ (j) (k) (l)
+ β1 = 0.9, β2 = 0.95. Observe multiple Slingshots
+
+Figure 15: Varying β1 , β2 in Adam on synthetic dataset. FCN is trained with Adam using learning rate 0.001
+and  = 10−06 . The validation accuracy of models that experience Slingshot reach their highest accuracy later
+in training.
+
+
+Influence of β1 and β2 In these experiments, we aim to study the impact of Adam/AdamW
+optimizer’s β1 and β2 hyperparameters on Slingshot. We use the synthetic data described above
+and set the learning rate of 0.001 and  = 10−08 for this analysis. Figure 15 and Figure 16 shows
+the results of this study. We observe from Figure 15 that the Slingshot Mechanism is fairly robust
+
+
+ 18
+ 0.999
+ 70
+ 0.95
+ 0.8 60
+ 0.65 50
+ 2 0.5 40
+ 0.4
+ 30
+ 0.3
+ 0.2 20
+
+ 0.1 10
+ 0.0 0
+ 0.0
+ 0.1
+ 0.2
+ 0.3
+ 0.4
+ 0.5
+ 0.6
+ 0.7
+ 0.8
+ 0.9
+ 1
+Figure 16: Extended analysis of β1 , β2 in Adam on synthetic dataset. Plot shows the highest validation accuracy
+achieved with various values of β1 , β2 with learning rate set to 0.001 and  = 10−06 . Hyperparameters that
+do not induce Slingshot Effects are marked with a diagonal line in black. Models trained with β1 > 0.2 and
+β2 = 0 diverged during training due to instability. These trials have their validation accuracy set to chance level.
+
+
+to the values of β1 and β2 . Figure 15a-Figure 15c show that Slingshot is even observed with β1
+and β2 set to 0 which effectively disables exponential moving averaging of gradient moments in
+Adam [9]. Figure 15g-Figure 15i provide an example of hyperparameters that fail to induce Slingshot.
+We observe from Figure 15 that models that experience Slingshot tend to reach their best test
+accuracy during the later stages of training. Specifically, we observe from Figure 15b, Figure 15e
+and Figure 15k that the best validation accuracy occurs after 60000 epochs. These examples provide
+further evidence about an interesting implicit bias of Adam. Figure 16 shows more examples of
+hyperparameters that do not induce Slingshot Effects. Finally, we observe from Figure 16 that
+hyperparameters that provide higher validation accuracy are from models that experience Slingshot
+Effects.
+
+
+
+
+ 19
+B Slingshot and Grokking
+We use the empirical setup described by Power et al. [17] to describe the Slingshot Mechanism. The
+following section describes relevant details including datasets, architecture and optimizer used in our
+experiments.
+
+Architecture The model used a decoder-only Transformer [21] with causal attention masking. The
+architecture used in all our experiments consists of 2 decoder layers with each layer of width 128 and
+4 attention heads.
+
+Optimization We train the architecture described above with Adam optimizer [9, 12] in most of
+our experiments unless noted otherwise. The learning rate is set to 0.001 and with linear learning
+rate warmup for the first 10 steps. We use β1 = 0.9, β2 = 0.98 for Adam’s hyperparameters. The
+Transformers are optimized with cross-entropy (CE) loss that is calculated on the output tokens for a
+given binary operation.
+
+Algorithmic Datasets The Transformer is trained on small algorithmic datasets that consists
+of sequences that represent a mathematical operation. The following operations are used in our
+experiments:
+
+ c = a + b (mod p) for 0 ≤ a, b < p
+ c = a − b (mod p) for 0 ≤ a, b < p
+ c = a ∗ b (mod p) for 0 ≤ a, b < p
+ c = a ÷ b (mod p) for 0 ≤ a, b < p
+ c = a2 + b (mod p) for 0 ≤ a, b < p
+ c = a3 + b (mod p) for 0 ≤ a, b < p
+ c = a2 + b2 (mod p) for 0 ≤ a, b < p
+ c = a2 + b2 + ab (mod p) for 0 ≤ a, b < p
+ c = a2 + b2 + ab + b (mod p) for 0 ≤ a, b < p
+ c = a3 + ab (mod p) for 0 ≤ a, b < p
+ c = a3 + ab2 + b (mod p) for 0 ≤ a, b < p
+ c = [a ÷ b (mod p) if b is odd, otherwise a − b (mod p)] for 0 ≤ a, b < p
+ c = a · b for a, b ∈ S5
+ c = a · b · a−1 for a, b ∈ S5
+ c = x · b · a for a, b ∈ S5
+ c = [a + b (mod p) if a is even, otherwise a ∗ b (mod p)] for 0 ≤ a, b < p
+ c = [a + b (mod p) if a is even, otherwise a − b (mod p)] for 0 ≤ a, b < p
+
+where p = 97 and with the dataset split in training and validation data. Each equation in the dataset
+is of the form (a)(op)(b)(=)c where (x) represents the token used to represent x. We refer to Power
+et al. [17] for a detailed description of the datasets
+
+B.1 Analysis of Parameter Dynamics
+
+A common observation is that intermediate representations tend to evolve beyond simple scale
+increase during phase transitions from norm growth to plateau. In order to empirically quantify this
+effect, we train the Transformer described in Appendix B with modular addition, multiplication
+and division datasets using Adam with learning rate set to 0.001 and β1 = 0.9 and β2 = 0.98. We
+calculate the cosine distance between the representation and classification parameters from their
+initial values where the cosine distance is given by
+ wtrepr w0repr
+ drepr = 1.0 − ·
+ kwtrepr k kw0repr k
+
+ 20
+ loss accuracy cosine distance
+ train validation last layer norm train validation last layer norm representation classification last layer norm
+ 2.5 100 2.5 2.5
+ 100 0.8
+ 2.0 80 2.0 2.0
+ 10 2
+
+
+ last layer norm last layer norm cosine distance
+ 0.6
+
+ last layer norm
+ 1.5 60 1.5 1.5
+ accuracy
+ 10 4
+ loss
+ 10 6 1.0 40 1.0 0.4 1.0
+ 10 8 20 0.5 0.2
+ 0.5 0.5
+ 10 10
+ 0.0 0 0.0 0.0 0.0
+ 0 10000 20000 30000 40000 50000 0 10000 20000 30000 40000 50000 0 10000 20000 30000 40000 50000
+ epoch epoch epoch
+
+ (a) (b) (c)
+ epsilon = 10−08
+
+ train validation last layer norm train validation last layer norm representation classification last layer norm
+ 101 100
+ 1.4 1.4 1.4
+ 0.8
+ 10 1 1.2 80 1.2 1.2
+ 1.0 1.0
+
+ last layer norm
+ 0.6
+
+ last layer norm
+ 1.0
+
+ cosine distance last layer norm
+ 10 3 60
+ accuracy
+ loss 0.8 0.8 0.8
+ 10 5 40 0.4
+ 0.6 0.6 0.6
+ 10 7 0.4 0.4 0.2 0.4
+ 20
+ 10 9 0.2 0.2 0.2
+ 0.0 0 0.0 0.0 0.0
+ 0 10000 20000 30000 40000 50000 0 10000 20000 30000 40000 50000 0 10000 20000 30000 40000 50000
+ epoch epoch epoch
+
+ (d) (e) (f)
+ epsilon = 10−07
+
+ train validation last layer norm train validation last layer norm representation classification last layer norm
+ 101 0.16 100 0.16 0.16
+
+ 10 1 0.14 80 0.14 0.4 0.14
+
+
+
+ last layer norm last layer norm
+ 0.12
+
+ cosine distance
+ 0.12
+
+ last layer norm
+ 60 0.3 0.12
+ accuracy
+ 10 3
+ loss 0.10 0.10
+ 40 0.2 0.10
+ 10 5
+ 0.08 0.08 0.08
+ 20 0.1
+ 10 7 0.06 0.06 0.06
+ 0 0.0
+ 0 10000 20000 30000 40000 50000 0 10000 20000 30000 40000 50000 0 10000 20000 30000 40000 50000
+ epoch epoch epoch
+
+ (g) (h) (i)
+ epsilon = 10−05
+
+ train validation last layer norm train validation last layer norm representation classification last layer norm
+ 0.14 0.14 0.14
+ 100 0.35
+ 100
+ 0.12 80 0.12 0.30
+ 0.12
+ 0.25
+
+
+ last layer norm last layer norm
+ 10 2
+
+ cosine distance last layer norm
+ 0.10 60 0.10
+ accuracy
+ 0.20 0.10
+ loss
+ 10 4 40 0.15
+ 0.08 0.08 0.08
+ 0.10
+ 20
+ 10 6 0.06 0.06 0.05 0.06
+ 0 0.00
+ 0 10000 20000 30000 40000 50000 0 10000 20000 30000 40000 50000 0 10000 20000 30000 40000 50000
+ epoch epoch epoch
+
+ (j) (k) (l)
+ epsilon = 10−04
+
+Figure 17: Cosine distance evolution for Transformer described in Appendix B trained on modular addition.
+Observe that the cosine distance from initialization increases with models that experience Slingshot Effects.
+
+
+
+ wtclf w0clf
+ dclf = 1.0 − ·
+ kwtclf k kw0clf k
+
+where drepr (dclf ) denotes cosine distance for representation (respectively classification) parameters,
+wtrepr (resp. wtclf ) denotes representation (resp. classification) parameters at time t with w0repr (wtclf )
+indicating the initial representation (resp. classification) parameters where the norm used above is the
+Euclidean norm.
+
+
+ 21
+ loss accuracy cosine distance
+ train validation last layer norm train validation last layer norm representation classification last layer norm
+ 100
+ 2.0 2.0 2.0
+ 100 0.8
+ 80
+ 10 2 1.5 1.5 1.5
+
+
+ last layer norm
+ 0.6
+
+ last layer norm cosine distance last layer norm
+ 60
+ accuracy
+ 10 4
+ loss 1.0 1.0 1.0
+ 10 6 40 0.4
+
+ 10 8 0.5 20 0.5 0.2 0.5
+ 10 10
+ 0.0 0 0.0 0.0 0.0
+ 0 10000 20000 30000 40000 50000 0 10000 20000 30000 40000 50000 0 10000 20000 30000 40000 50000
+ epoch epoch epoch
+
+ (a) (b) (c)
+ epsilon = 10−08
+
+ train validation last layer norm train validation last layer norm representation classification last layer norm
+ 100 1.75
+ 1.75 1.75
+ 100 0.8
+ 1.50 80 1.50 1.50
+ 10 2 1.25
+ 1.25 0.6
+
+ last layer norm
+ 1.25
+
+
+ last layer norm cosine distance last layer norm
+ 60
+ accuracy
+ 10 4 1.00 1.00 1.00
+ loss 0.4
+ 10 6 0.75 40 0.75 0.75
+ 10 8 0.50 0.50 0.2 0.50
+ 20
+ 0.25 0.25 0.25
+ 10 10
+ 0.00 0 0.00 0.0 0.00
+ 0 10000 20000 30000 40000 50000 0 10000 20000 30000 40000 50000 0 10000 20000 30000 40000 50000
+ epoch epoch epoch
+
+ (d) (e) (f)
+ epsilon = 10−07
+
+ train validation last layer norm train validation last layer norm representation classification last layer norm
+ 101 100
+ 0.14 0.14 0.4
+ 0.14
+ 10 1 80
+ 0.12 0.12 0.3 0.12
+
+
+ last layer norm last layer norm cosine distance last layer norm
+ 60
+ accuracy
+ 10 3
+ loss 0.10 0.10 0.2 0.10
+ 40
+ 10 5 0.08 0.08 0.08
+ 20 0.1
+ 10 7 0.06 0.06 0.06
+ 0 0.0
+ 0 10000 20000 30000 40000 50000 0 10000 20000 30000 40000 50000 0 10000 20000 30000 40000 50000
+ epoch epoch epoch
+
+ (g) (h) (i)
+ epsilon = 10−05
+
+ train validation last layer norm train validation last layer norm representation classification last layer norm
+ 100 0.35
+ 100
+ 0.12 80 0.12 0.30 0.12
+ 0.25
+
+
+ last layer norm last layer norm
+ 10 2
+
+ cosine distance last layer norm
+ 0.10 60 0.10 0.10
+ accuracy
+ 0.20
+ loss
+ 10 4 40 0.15
+ 0.08 0.08 0.08
+ 0.10
+ 20
+ 10 6 0.06 0.06 0.05 0.06
+ 0 0.00
+ 0 10000 20000 30000 40000 50000 0 10000 20000 30000 40000 50000 0 10000 20000 30000 40000 50000
+ epoch epoch epoch
+
+ (j) (k) (l)
+ epsilon = 10−04
+
+Figure 18: Cosine distance evolution for Transformer described in Appendix B trained on modular multiplication.
+Observe that the cosine distance from initialization increases with models that experience Slingshot Effects.
+
+
+
+Figure 17 shows the dynamics of the loss, accuracy and cosine distance recorded during training.
+We observe that the classification parameters move farther away from initialization faster than the
+representation parameters. More interestingly, we observe from Figure 17c and Figure 17f that the
+representation parameters travel farther from initialization for training runs that experience Slingshot.
+These trials use  = 10−08 and  = 10−07 and experience Slingshot Effects. In contrast, we see
+from Figure 17i and Figure 17l that the representation distance remains low for models trained with
+ = 10−05 and  = 10−04 . The models trained with higher  values do not experience Slingshot
+Effects. These results suggest that Slingshot may have a beneficial effect in moving the representation
+
+
+ 22
+ loss accuracy cosine distance
+ train validation last layer norm train validation last layer norm representation classification last layer norm
+ 102 2.5 100 2.5 2.5
+ 100 2.0 0.8
+ 2.0 80 2.0
+ 10 2
+
+
+ last layer norm last layer norm
+ 0.6
+
+ cosine distance last layer norm
+ 1.5 60 1.5 1.5
+ accuracy
+ 10 4
+ loss
+ 10 6 1.0 40 1.0 0.4 1.0
+ 10 8 20 0.5 0.2
+ 0.5 0.5
+ 10 10
+ 0.0 0 0.0 0.0 0.0
+ 0 10000 20000 30000 40000 50000 0 10000 20000 30000 40000 50000 0 10000 20000 30000 40000 50000
+ epoch epoch epoch
+
+ (a) (b) (c)
+ epsilon = 10−08
+
+ train validation last layer norm train validation last layer norm representation classification last layer norm
+ 102 100
+ 2.0 2.0 2.0
+ 100 0.8
+ 80
+ 10 2 1.5 1.5 1.5
+
+
+ last layer norm
+ 0.6
+
+ last layer norm cosine distance last layer norm
+ 60
+ loss 10 4 1.0 accuracy 1.0 0.4 1.0
+ 40
+ 10 6
+ 0.5 20 0.5 0.2 0.5
+ 10 8
+ 0.0 0 0.0 0.0 0.0
+ 0 10000 20000 30000 40000 50000 0 10000 20000 30000 40000 50000 0 10000 20000 30000 40000 50000
+ epoch epoch epoch
+
+ (d) (e) (f)
+ epsilon = 10−07
+
+ train validation last layer norm train validation last layer norm representation classification last layer norm
+ 101 0.16 100 0.16 0.16
+ 0.14 0.14 0.4
+ 10 1 80 0.14
+
+
+
+ last layer norm last layer norm
+ 0.12 0.12 0.3
+
+ cosine distance last layer norm
+ 60 0.12
+ accuracy
+ 10 3
+ loss 0.10 0.10
+ 40 0.2 0.10
+ 10 5 0.08 0.08 0.08
+ 20 0.1
+ 10 7 0.06 0.06 0.06
+ 0 0.0
+ 0 10000 20000 30000 40000 50000 0 10000 20000 30000 40000 50000 0 10000 20000 30000 40000 50000
+ epoch epoch epoch
+
+ (g) (h) (i)
+ epsilon = 10−05
+
+ train validation last layer norm train validation last layer norm representation classification last layer norm
+ 0.14 100 0.14 0.35 0.14
+ 100
+ 80 0.30
+ 0.12 0.12 0.12
+ 0.25
+
+
+ last layer norm last layer norm
+ 10 2
+
+ cosine distance last layer norm
+ 60
+ accuracy
+ 0.10 0.10 0.20 0.10
+ loss
+ 10 4 40 0.15
+ 0.08 0.08 0.08
+ 0.10
+ 20
+ 10 6 0.06 0.06 0.05 0.06
+ 0 0.00
+ 0 10000 20000 30000 40000 50000 0 10000 20000 30000 40000 50000 0 10000 20000 30000 40000 50000
+ epoch epoch epoch
+
+ (j) (k) (l)
+ epsilon = 10−04
+
+Figure 19: Cosine distance evolution for Transformer described in Appendix B trained on modular division.
+Observe that the cosine distance from initialization increases with models that experience Slingshot Effects.
+
+
+parameters away from initialization which eventually helps with model generalization. Figure 18 and
+Figure 19 show a similar trend for multiplication and division datasets respectively.
+
+B.2 SGD Optimization
+
+In this appendix, we show that Slingshot Effects are not seen during Transformer training with
+stochastic gradient descent (SGD) with momentum to support our claim in the main paper. To this
+end, we use train the Transformer described in in Appendix B on modular division dataset with a
+
+
+ 23
+ train validation last layer norm train validation last layer norm
+ 101 0.11 100 0.11
+ 100 0.10 80 0.10
+
+ 0.09 0.09
+
+
+ last layer norm last layer norm
+ 10 1 60
+ accuracy
+ loss 0.08 0.08
+ 10 2 40
+ 0.07 0.07
+ 10 3 20
+ 0.06 0.06
+ 10 4 0
+ 0.05 0.05
+ 0 20000 40000 60000 80000 100000120000140000 0 20000 40000 60000 80000 100000120000140000
+ epoch epoch
+ (a) (b)
+
+ train validation last layer norm train validation last layer norm
+ 101 0.12 0.12
+ 100
+ 0.11 0.11
+ 100
+ 80
+ 0.10 0.10
+ 10 1
+
+
+ last layer norm last layer norm
+ 0.09 60 0.09
+ accuracy
+ loss 10 2
+ 0.08 40 0.08
+ 10 3
+ 0.07 0.07
+ 10 4 20
+ 0.06 0.06
+ 10 5 0
+ 0.05 0.05
+ 0 20000 40000 60000 80000 100000120000140000 0 20000 40000 60000 80000 100000120000140000
+ epoch epoch
+ (c) (d)
+
+ train validation last layer norm train validation last layer norm
+ 101 100
+ 100 0.12
+ 0.12 80
+ 10 1
+
+
+ last layer norm last layer norm
+ 10 2 0.10 60 0.10
+ loss 10 3 accuracy
+ 40
+ 10 4 0.08 0.08
+ 10 5 20
+ 0.06 0.06
+ 10 6 0
+ 0 20000 40000 60000 80000 100000120000140000 0 20000 40000 60000 80000 100000120000140000
+ epoch epoch
+ (e) (f)
+
+Figure 20: Optimizing a Transformer with SGD on modular division dataset: Norm growth vs (a), (c), (e)
+training and validation loss, (b), (d), (f) training and validation accuracy. Note the lack of Slingshot Effects,
+Grokking and generalization seen with Adam/AdamW optimizer.
+
+
+
+50/50 train/validation split using SGD with momentum. We use a mini-batch size of 512 which
+requires the optimizer to take 10 steps per epoch for dataset split described above. We set momentum
+to 0.9 and use the following learning rates: 0.001, 0.01 and 0.1 and run the optimizer for 1500000
+steps. The number of steps used here is 3 times larger than the steps used to run Adam/AdamW in
+this work which is chosen to give SGD additional time to reach convergence. Figure 20 shows the
+usual loss and accuracy metrics calculated on training and validation data as well as the weight norm
+of the classifier layer. We observe that there is no evidence of Slingshot with SGD. Lastly, we do not
+see any evidence of Grokking or generalization with this setup as well.
+
+B.3 Slingshots with Additional Datasets
+
+In this appendix, we provide evidence of Slingshot Effects on additional datasets from Power et
+al [17] Grokking work. The datasets are created by a subset of mathematical operations defined in
+Appendix B. Each operation can have multiple datasets that depends on the train/validation split
+
+
+ 24
+ratio. We use the training setup described in B on 18 separate datasets. Figure 21 - Figure 38 shows
+the results the datasets described in this appendix. We observe Slingshot Effects and generalization
+with all 18 datasets. These results suggest the prevalence of Slingshot Effects when large models are
+trained with adaptive optimizers, specifically Adam [9].
+
+ train validation last layer norm train validation last layer norm
+ 100
+ 100 1.75 1.75
+ 1.50 80 1.50
+ 10 2
+ 1.25
+
+ last layer norm
+ 1.25
+
+ last layer norm
+ 60
+ accuracy
+ 10 4
+ loss 1.00 1.00
+ 10 6 0.75 40 0.75
+ 10 8 0.50 20 0.50
+ 10 10 0.25 0.25
+ 0.00 0 0.00
+ 0 10000 20000 30000 40000 50000 0 10000 20000 30000 40000 50000
+ epoch epoch
+ (a) (b)
+
+Figure 21: Addition dataset with 50/50 train/validation split. Training and validation (a) loss and (b) accuracy.
+
+
+ train validation last layer norm train validation last layer norm
+ 100
+ 100
+ 2.0 2.0
+ 80
+ 10 2
+
+
+ last layer norm
+ 1.5
+
+ last layer norm
+ 10 4 1.5 60
+ loss
+ 10 6 accuracy 1.0
+ 1.0 40
+ 10 8 20
+ 0.5 0.5
+ 10 10
+ 0.0 0 0.0
+ 0 10000 20000 30000 40000 0 10000 20000 30000 40000
+ epoch epoch
+ (a) (b)
+
+Figure 22: Addition dataset with 60/40 train/validation split. Training and validation (a) loss and (b) accuracy.
+
+
+
+
+ 25
+ train validation last layer norm train validation last layer norm
+ 100 2.5
+ 100 2.5
+ 80 2.0
+ 10 2 2.0
+
+
+
+ last layer norm last layer norm
+ 10 4 60 1.5
+ accuracy
+ 1.5
+ loss
+ 10 6 40 1.0
+ 1.0
+ 10 8
+ 0.5 20 0.5
+ 10 10
+ 0.0 0 0.0
+ 0 5000 10000 15000 20000 25000 30000 35000 40000 0 5000 10000 15000 20000 25000 30000 35000 40000
+ epoch epoch
+ (a) (b)
+
+Figure 23: Addition dataset with 70/30 train/validation split. Training and validation (a) loss and (b) accuracy.
+
+
+
+
+ train validation last layer norm train validation last layer norm
+ 102 100 2.5
+ 2.5
+ 100
+ 2.0 80 2.0
+ 10 2
+
+
+ last layer norm last layer norm
+ 1.5 60 1.5
+ accuracy
+ 10 4
+ loss
+ 10 6 1.0 40 1.0
+ 10 8 20
+ 0.5 0.5
+ 10 10
+ 0.0 0 0.0
+ 0 10000 20000 30000 40000 50000 0 10000 20000 30000 40000 50000
+ epoch epoch
+ (a) (b)
+
+Figure 24: Cubepoly dataset with 50/50 train/validation split. Cubepoly operation is given by (a3 + b (mod p)
+for 0 ≤ a, b < p). Training and validation (a) loss and (b) accuracy.
+
+
+
+
+ train validation last layer norm train validation last layer norm
+ 2.00 100 2.00
+ 100 1.75
+ 1.75
+ 80
+ 10 2 1.50 1.50
+
+
+
+ last layer norm last layer norm
+ 10 4 1.25 60 1.25
+ loss
+ 10 6
+ 1.00 accuracy 1.00
+ 40 0.75
+ 0.75
+ 10 8 0.50 20 0.50
+ 10 10 0.25 0.25
+ 0.00 0 0.00
+ 0 10000 20000 30000 40000 0 10000 20000 30000 40000
+ epoch epoch
+ (a) (b)
+
+Figure 25: Cubepoly dataset with 60/40 train/validation split. Cubepoly operation is given by (a3 + b (mod p)
+for 0 ≤ a, b < p). Training and validation (a) loss and (b) accuracy.
+
+
+
+
+ 26
+ train validation last layer norm train validation last layer norm
+ 100
+ 100 1.75 1.75
+ 1.50 80 1.50
+ 10 2
+ 1.25
+
+ last layer norm
+ 1.25
+
+ last layer norm
+ 10 4 60
+ accuracy
+ 1.00 1.00
+ loss
+ 10 6 0.75 40 0.75
+ 10 8 0.50 0.50
+ 20
+ 10 10 0.25 0.25
+ 0.00 0 0.00
+ 0 5000 10000 15000 20000 25000 30000 35000 40000 0 5000 10000 15000 20000 25000 30000 35000 40000
+ epoch epoch
+ (a) (b)
+
+Figure 26: Cubepoly dataset with 70/30 train/validation split. Cubepoly operation is given by (a3 + b (mod p)
+for 0 ≤ a, b < p). Training and validation (a) loss and (b) accuracy.
+
+
+
+
+ train validation last layer norm train validation last layer norm
+ 100
+ 100 1.75 1.75
+ 1.50 80 1.50
+ 10 2
+ 1.25 1.25
+
+
+ last layer norm last layer norm
+ 10 4 60
+ accuracy
+ 1.00 1.00
+ loss
+ 10 6 0.75 40 0.75
+ 10 8 0.50 0.50
+ 20
+ 10 10 0.25 0.25
+ 0.00 0 0.00
+ 0 5000 10000 15000 20000 25000 30000 0 5000 10000 15000 20000 25000 30000
+ epoch epoch
+ (a) (b)
+
+Figure 27: Cubepoly dataset with 80/20 train/validation split. Cubepoly operation is given by (a3 + b (mod p)
+for 0 ≤ a, b < p). Training and validation (a) loss and (b) accuracy.
+
+
+
+
+ train validation last layer norm train validation last layer norm
+ 102 100
+ 2.00 2.00
+ 100 1.75 1.75
+ 80
+ 10 2 1.50 1.50
+
+
+ last layer norm last layer norm
+ 1.25 60 1.25
+ accuracy
+ 10 4
+ loss 1.00 1.00
+ 10 6 40
+ 0.75 0.75
+ 10 8 0.50 20 0.50
+ 0.25 0.25
+ 10 10 0
+ 0.00 0.00
+ 0 10000 20000 30000 40000 50000 0 10000 20000 30000 40000 50000
+ epoch epoch
+ (a) (b)
+
+Figure 28: Division dataset with 50/50 train/validation split. Training and validation (a) loss and (b) accuracy.
+
+
+
+
+ 27
+ train validation last layer norm train validation last layer norm
+ 102 100
+ 1.75 1.75
+ 100
+ 1.50 80 1.50
+ 10 2
+ 1.25
+
+ last layer norm
+ 1.25
+
+ last layer norm
+ 60
+ accuracy
+ 10 4 1.00
+ loss 1.00
+ 10 6 0.75 40 0.75
+ 10 8 0.50 0.50
+ 20
+ 10 10 0.25 0.25
+ 0.00 0 0.00
+ 0 10000 20000 30000 40000 0 10000 20000 30000 40000
+ epoch epoch
+ (a) (b)
+
+Figure 29: Division dataset with 60/40 train/validation split. Training and validation (a) loss and (b) accuracy.
+
+
+
+
+ train validation last layer norm train validation last layer norm
+ 100
+ 100 2.5 2.5
+ 80 2.0
+ 10 2 2.0
+
+
+ last layer norm last layer norm
+ 10 4 60
+ accuracy
+ 1.5 1.5
+ loss
+ 10 6 40
+ 1.0 1.0
+ 10 8
+ 0.5 20 0.5
+ 10 10
+ 0.0 0 0.0
+ 0 5000 10000 15000 20000 25000 30000 35000 40000 0 5000 10000 15000 20000 25000 30000 35000 40000
+ epoch epoch
+ (a) (b)
+
+Figure 30: Division dataset with 70/30 train/validation split. Training and validation (a) loss and (b) accuracy.
+
+
+
+
+ train validation last layer norm train validation last layer norm
+
+ 1.75 100 1.75
+ 100
+ 1.50 80 1.50
+ 10 2 1.25
+ 1.25
+
+
+ last layer norm last layer norm
+ 10 4 60
+ accuracy
+ 1.00 1.00
+ loss
+ 10 6 0.75 40 0.75
+ 10 8 0.50 0.50
+ 20
+ 10 10 0.25 0.25
+ 0.00 0 0.00
+ 0 5000 10000 15000 20000 25000 30000 35000 40000 0 5000 10000 15000 20000 25000 30000 35000 40000
+ epoch epoch
+ (a) (b)
+
+Figure 31: Even-add-odd-subtraction dataset with 70/30 train/validation split. Even-add-odd-subtraction
+operation is given by [a + b (mod p) if a is even, otherwise a − b (mod p)] for 0 ≤ a, b < p. Training and
+validation (a) loss and (b) accuracy.
+
+
+
+
+ 28
+ train validation last layer norm train validation last layer norm
+ 100
+ 2.0 2.0
+ 100
+ 80
+ 10 2 1.5 1.5
+
+
+ last layer norm last layer norm
+ 60
+ accuracy
+ 10 4
+ loss 1.0 1.0
+ 10 6 40
+ 10 8 0.5 20 0.5
+ 10 10
+ 0.0 0 0.0
+ 0 10000 20000 30000 40000 50000 0 10000 20000 30000 40000 50000
+ epoch epoch
+ (a) (b)
+
+Figure 32: Multiplication dataset with 50/50 train/validation split. Training and validation (a) loss and (b)
+accuracy.
+
+
+
+
+ train validation last layer norm train validation last layer norm
+ 100 2.00
+ 100 2.00
+ 1.75 1.75
+ 80
+ 10 2 1.50 1.50
+
+
+ last layer norm last layer norm
+ 10 4 1.25 60 1.25
+ loss
+ 10 6
+ 1.00 accuracy 1.00
+ 40
+ 0.75 0.75
+ 10 8 0.50 20 0.50
+ 10 10 0.25 0.25
+ 0.00 0 0.00
+ 0 10000 20000 30000 40000 0 10000 20000 30000 40000
+ epoch epoch
+ (a) (b)
+
+Figure 33: Multiplication dataset with 60/40 train/validation split. Training and validation (a) loss and (b)
+accuracy.
+
+
+
+
+ train validation last layer norm train validation last layer norm
+ 2.5 100 2.5
+ 100
+ 2.0 80 2.0
+ 10 2
+
+
+ last layer norm last layer norm
+ 1.5 60 1.5
+ accuracy
+ 10 4
+ loss
+ 10 6 1.0 40 1.0
+ 10 8 20
+ 0.5 0.5
+ 10 10
+ 0.0 0 0.0
+ 0 5000 10000 15000 20000 25000 30000 35000 40000 0 5000 10000 15000 20000 25000 30000 35000 40000
+ epoch epoch
+ (a) (b)
+
+Figure 34: Squarepoly dataset with 70/30 train/validation split. Squarepoly operation is given by a2 +b (mod p)
+for 0 ≤ a, b < p. Training and validation (a) loss and (b) accuracy.
+
+
+
+
+ 29
+ train validation last layer norm train validation last layer norm
+ 100
+ 100 2.0
+ 2.0 80
+ 10 2
+
+
+ last layer norm
+ 1.5
+
+ last layer norm
+ 1.5 60
+ 10 4
+ loss
+ 10 6 1.0 accuracy 1.0
+ 40
+ 10 8
+ 0.5 20 0.5
+ 10 10
+ 0.0 0 0.0
+ 0 5000 10000 15000 20000 25000 30000 0 5000 10000 15000 20000 25000 30000
+ epoch epoch
+ (a) (b)
+
+Figure 35: Squarepoly dataset with 80/20 train/validation split. Squarepoly operation is given by a2 +b (mod p)
+for 0 ≤ a, b < p. Training and validation (a) loss and (b) accuracy.
+
+
+
+
+ train validation last layer norm train validation last layer norm
+ 100
+ 100 2.0 2.0
+ 80
+ 10 2
+ 1.5
+
+
+ last layer norm
+ 1.5
+
+
+ last layer norm
+ 60
+ accuracy
+ 10 4
+ loss 1.0
+ 10 6 1.0 40
+ 10 8 0.5 20 0.5
+ 10 10
+ 0.0 0 0.0
+ 0 10000 20000 30000 40000 0 10000 20000 30000 40000
+ epoch epoch
+ (a) (b)
+
+Figure 36: Subtraction dataset with 60/40 train/validation split. Training and validation (a) loss and (b) accuracy.
+
+
+
+
+ train validation last layer norm train validation last layer norm
+
+ 1.75 100 1.75
+ 100
+ 1.50 80 1.50
+ 10 2
+ 1.25 1.25
+
+
+ last layer norm last layer norm
+ 10 4 60
+ accuracy
+ 1.00 1.00
+ loss
+ 10 6 0.75 40 0.75
+ 10 8 0.50 0.50
+ 20
+ 10 10 0.25 0.25
+ 0.00 0 0.00
+ 0 5000 10000 15000 20000 25000 30000 35000 40000 0 5000 10000 15000 20000 25000 30000 35000 40000
+ epoch epoch
+ (a) (b)
+
+Figure 37: Subtraction dataset with 70/30 train/validation split. Training and validation (a) loss and (b) accuracy.
+
+
+
+
+ 30
+ train validation last layer norm train validation last layer norm
+ 100
+ 100 1.4 1.4
+ 1.2 80 1.2
+ 10 2
+
+
+ last layer norm
+ 1.0
+
+ last layer norm
+ 1.0 60
+ 10 4
+ accuracy
+ loss 0.8 0.8
+ 10 6 40 0.6
+ 0.6
+ 10 8 0.4 0.4
+ 20
+ 10 10 0.2 0.2
+ 0.0 0 0.0
+ 0 5000 10000 15000 20000 25000 30000 0 5000 10000 15000 20000 25000 30000
+ epoch epoch
+ (a) (b)
+
+Figure 38: Subtraction dataset with 80/20 train/validation split. Training and validation (a) loss and (b) accuracy.
+
+
+
+
+ 31
+C Controlling Instability Through Normalization and Norm Constraints
+Training instability is the hallmark of the Slingshot Mechanism, yet as seen in previous sections, the
+Slingshot Effect typically results in improved performance, and Grokking. In this section, we explore
+whether it is possible to maintain stable training, without sacrificing performance. To this end, we
+explore how constraining and regularizing the weights of the network affect the Slingshot behaviour,
+and overall performance.
+
+C.1 Weight decay
+
+ weight decay = 0 weight decay = 0.1 weight decay = 1.0
+ train validation last layer norm train validation last layer norm train validation last layer norm
+ 102 0.18 0.20
+ 2.00
+ 100 100 0.18
+ 1.75 0.16
+ 1.50 100 0.16
+ 10 2 0.14
+ 10 2
+
+ last layer norm last layer norm last layer norm
+ 1.25 0.14
+ 10 4 0.12
+ loss 1.00 loss loss 0.12
+ 10 6 10 4 0.10
+ 0.75 10 1 0.10
+ 10 8 0.50 0.08 0.08
+ 10 6
+ 0.25 0.06 0.06
+ 10 10
+ 0.00 10 2
+ 0 10000 20000 30000 40000 50000 0 5000 10000 15000 20000 25000 30000 0 5000 10000 15000 20000 25000 30000
+ epoch epoch epoch
+
+ (a) (b) (c)
+ train and validation loss vs epochs
+ train validation last layer norm train validation last layer norm train validation last layer norm
+ 100 100 0.18 100 0.20
+ 2.00
+ 1.75 0.16 0.18
+ 80 80 80
+ 1.50 0.16
+ 0.14
+
+
+ last layer norm last layer norm last layer norm
+ 60 1.25 60 60 0.14
+ accuracy accuracy accuracy
+ 0.12
+ 1.00 0.12
+ 40 40 0.10 40
+ 0.75 0.10
+ 20 0.50 20 0.08 20 0.08
+ 0.25 0.06 0.06
+ 0 0.00 0 0
+ 0 10000 20000 30000 40000 50000 0 5000 10000 15000 20000 25000 30000 0 5000 10000 15000 20000 25000 30000
+ epoch epoch epoch
+
+ (d) (e) (f)
+ train and validation accuracy vs epochs
+
+Figure 39: Division dataset: Norm behavior with different weight decay values. Training and validation loss vs
+epochs with weight decay (a) 0.0, (b) 0.1, (c) 1.0; Training and validation accuracy vs epochs shown in (d), (e)
+and (f). The evolution of classifier weight norm shows instability as increase in weight decay strength.
+
+Weight decay is a commonly used regularization approach to improve the generalization performance
+of neural networks. Power et al. [17] show that weight decay has the largest positive effect on
+alleviating Grokking. Weight decay naturally controls the size of the parameters and consequently
+their norm growth. We study the effect of weight decay on stability of training Transformers with
+Grokking datasets in this section. We use weight decay values from 0, 0.1, 0.2, 0.4, 0.6, 0.8and1.0
+with AdamW [12] optimizer. Figure 39 shows the results for division dataset. We observe from
+Figure 39 that as weight decay strength increases, both Slingshot Effects and Grokking phenomenon
+disappear with the model reaching high validation accuracy quickly as seen in Figure 39e and
+Figure 39f. However, we observe that the model experiences instability as can been seen with the
+loss plots in Figure 39b and Figure 39c or the accuracy plots in Figure 39e and Figure 39f. A similar
+trend is observed for addition and multiplication datasets in Figure 40 and Figure 41 respectively.
+The results shown above indicate that Slingshot may not be the only way to achieve good generaliza-
+tion. Both Slingshot and weight decay prevent the norms from growing unbounded and achieve high
+validation accuracy as seen in plots described above. While weight decay shows different weight
+norm dynamics, this regularization does not decrease training instability. These results suggest the
+need for alternative approaches to improve training stability.
+
+
+
+
+ 32
+ weight decay = 0 weight decay = 0.1 weight decay = 1.0
+ train validation last layer norm train validation last layer norm train validation last layer norm
+ 2.5 0.18 0.20
+ 100 100 0.16
+ 2.0 0.18
+ 10 2 0.14 100 0.16
+ 10 2
+
+ last layer norm last layer norm last layer norm
+ 10 4 1.5 0.14
+ 0.12
+ loss loss loss 0.12
+ 10 6 1.0 10 4 0.10 10 1
+ 0.10
+ 10 8 0.08
+ 0.5 10 6 0.08
+ 10 10 0.06 10 2 0.06
+ 0.0
+ 0 5000 10000 15000 20000 25000 30000 35000 0 5000 10000 15000 20000 25000 30000 35000 0 5000 10000 15000 20000 25000 30000 35000
+ epoch epoch epoch
+
+ (a) (b) (c)
+ train and validation loss vs epochs
+ train validation last layer norm train validation last layer norm train validation last layer norm
+ 100 2.5 0.18
+ 100 100 0.20
+ 2.0 0.16 0.18
+ 80 80 80
+ 0.14 0.16
+
+
+ last layer norm last layer norm last layer norm
+ 60 1.5 60 60 0.14
+ accuracy accuracy accuracy
+ 0.12
+ 0.12
+ 40 1.0 40 0.10 40
+ 0.10
+ 20 0.5 20 0.08 20 0.08
+ 0.06 0.06
+ 0 0.0 0 0
+ 0 5000 10000 15000 20000 25000 30000 35000 0 5000 10000 15000 20000 25000 30000 35000 0 5000 10000 15000 20000 25000 30000 35000
+ epoch epoch epoch
+
+ (d) (e) (f)
+ train and validation accuracy vs epochs
+
+Figure 40: Addition dataset: Norm behavior with different weight decay values. Training and validation loss vs
+epochs with weight decay (a) 0.0, (b) 0.1, (c) 1.0; Training and validation accuracy vs epochs shown in (d), (e)
+and (f). The evolution of classifier weight norm shows instability as increase in weight decay strength.
+
+
+
+ weight decay = 0 weight decay = 0.1 weight decay = 1.0
+ train validation last layer norm train validation last layer norm train validation last layer norm
+
+ 2.0 0.16 0.18
+ 100 100
+ 0.14 0.16
+ 10 2 1.5 100
+ 10 2
+
+ last layer norm last layer norm last layer norm
+ 0.12 0.14
+ 10 4
+ loss 1.0 loss loss 0.12
+ 10 6 10 4 0.10
+ 10 1 0.10
+ 10 8 0.5 0.08 0.08
+ 10 6
+ 10 10 0.06 0.06
+ 0.0 10 2
+ 0 10000 20000 30000 40000 0 5000 10000 15000 20000 25000 0 5000 10000 15000 20000 25000 30000 35000
+ epoch epoch epoch
+
+ (a) (b) (c)
+ train and validation loss vs epochs
+ train validation last layer norm train validation last layer norm train validation last layer norm
+ 100 100 100
+ 2.0 0.16 0.18
+ 80 80 0.14 80 0.16
+ 1.5
+
+
+ last layer norm last layer norm last layer norm
+ 60 60 0.12 60 0.14
+
+ accuracy 1.0 accuracy 0.10 accuracy
+ 0.12
+ 40 40 40 0.10
+ 0.5 0.08 0.08
+ 20 20 20
+ 0.06 0.06
+ 0 0.0 0 0
+ 0 10000 20000 30000 40000 0 5000 10000 15000 20000 25000 0 5000 10000 15000 20000 25000 30000 35000
+ epoch epoch epoch
+
+ (d) (e) (f)
+ train and validation accuracy vs epochs
+
+Figure 41: Multiplication dataset: Norm behavior with different weight decay values. Training and validation
+loss vs epochs with weight decay (a) 0.0, (b) 0.1, (c) 1.0; Training and validation accuracy vs epochs shown in
+(d), (e) and (f). The evolution of classifier weight norm shows instability as increase in weight decay strength.
+
+
+
+
+ 33
+C.2 Features and parameter normalization
+
+A second approach that we use to explicitly control weights and feature norm is by normalizing
+the features and weights via the following scheme: w = kwk w
+ , f (x) = kff (x)k
+ (x)
+ , where w and f (x)
+are the weights and inputs to the classification layer respectively, the norm used above is the L2
+norm, and x is the input to the neural network. We take the cosine similarity of the normalized
+weights and features and divide this value by a temperature value that we treat as a hyperparameter
+in these experiments. The operation is given by: y = w·fτ(x) where τ represents the temperature
+hyperparameter. We use temperature values from 0.1, 0.25, 0.5, 0.75, 1.0 for these experiments.
+Figure 42 shows the results of Transformer training on division dataset described in Appendix B that
+is split evenly into train and validation sets. We observe that the model displays training instability
+evidenced by norm behavior and also loss behavior in Figure 42a at lower temperature values. We
+observe that τ = 0.25 provides a good compromise between fitting training data while showing
+no training instability as seen in Figure 42b. This hyperparameter value also results in Grokking
+as validation accuracy improves late in training as can be seen from Figure 42e. These together
+suggest that bounding weights and features norm helps stabilize training without sacrificing training
+performance.
+We validate the normalization scheme with two additional datasets namely multiplication and division
+from Appendix B. Figure 43 shows the results for training Transformers with multiplication dataset
+that is split evenly into train and validation sets. We observe from Figure 43 that a proper temperature
+value can stabilize training and with some tuning can provide a compromise between training stability
+and generalization. Specifically, τ = 0.25 allows the model to fit the training data and reach almost
+perfect validation accuracy as seen from Figure 43b and Figure 43e.
+Finally, we repeat the above experiments with subtraction dataset and show the results in Figure 44.
+This dataset shows that while a properly tuned temperature can help the model achieve almost perfect
+generalization, training instability shows up very late in optimization. This observation can be seen
+from Figure 44b and Figure 44d. This result suggests that more work remains to be done with
+understanding and stabilizing the training behavior of large neural networks.
+
+ temperature = 0.1 temperature = 0.25 temperature = 1.0
+ train validation last layer norm
+ train validation last layer norm train validation last layer norm
+ 0.8 6 × 100 0.40
+ 0.30
+ 0.35 5.4 × 100
+ 0.7
+ 100 4 × 100 5.2 × 100 0.25
+ 0.6 0.30
+
+
+ last layer norm last layer norm
+ 3 × 100 5 × 100
+
+ last layer norm
+ 0.5 0.25 0.20
+ loss loss 4.8 × 100
+ 10 1 0.4 0.20 loss
+ 2 × 100 0.15
+ 0.3 0.15 4.6 × 100
+ 0.2 4.4 × 100 0.10
+ 10 2 0.10
+ 0.1
+ 100 0.05 4.2 × 100 0.05
+ 0 2000 4000 6000 8000 10000 12000 14000 0 5000 10000 15000 20000 25000 0 10000 20000 30000 40000 50000
+ epoch epoch epoch
+
+ (a) (b) (c)
+ train and validation loss vs epochs
+
+ train validation last layer norm train validation last layer norm
+ train validation last layer norm
+ 100 0.40 0.30
+ 0.8 100
+ 0.35 8 0.25
+ 80 0.7 80
+ 0.6 0.30
+
+
+ last layer norm
+ 6
+
+ last layer norm last layer norm
+ 60 60 0.20
+ accuracy
+ 0.5 0.25
+ accuracy 0.4 accuracy 0.20 4 0.15
+ 40 40
+ 0.3 0.15
+ 20 0.2 20 2 0.10
+ 0.10
+ 0.1
+ 0 0 0.05 0 0.05
+ 0 2000 4000 6000 8000 10000 12000 14000 0 5000 10000 15000 20000 25000 0 10000 20000 30000 40000 50000
+ epoch epoch epoch
+
+ (d) (e) (f)
+ train and validation accuracy vs epochs
+
+Figure 42: Division dataset: Features and parameters normalization. Observe that a smaller temperature allows
+the model to fit the data better but experiences training instability. Temperature = 0.25 allows the model to fit
+and achieve high validation accuracy without suffering training instability.
+
+
+
+ 34
+ temperature = 0.1 temperature = 0.25 temperature = 1.0
+ train validation last layer norm train validation last layer norm
+ train validation last layer norm
+ 1.2 6 × 100
+ 0.6 5.4 × 100 0.30
+ 1.0 4 × 100
+ 100 0.5 5.2 × 100
+ 0.25
+
+
+ last layer norm
+ 0.8
+
+ last layer norm
+ 3 × 100 5 × 100
+
+ last layer norm
+ 0.4
+ loss 0.6 loss 4.8 × 100 0.20
+ 10 1 loss
+ 2 × 100 0.3
+ 0.4 4.6 × 100 0.15
+ 0.2
+ 0.2 4.4 × 100 0.10
+ 10 2
+ 0.1
+ 100 4.2 × 100 0.05
+ 0.0
+ 0 10000 20000 30000 40000 0 10000 20000 30000 40000 0 5000 10000 15000 20000 25000 30000 35000 40000
+ epoch epoch epoch
+
+ (a) (b) (c)
+ train and validation loss vs epochs
+
+ train validation last layer norm train validation last layer norm train validation last layer norm
+ 100 1.2 100 8
+ 0.6 0.30
+ 80 1.0 80
+ 0.5 6 0.25
+
+
+ last layer norm last layer norm last layer norm
+ 60 0.8 60 0.4
+ accuracy accuracy accuracy
+ 0.20
+ 0.6 4
+ 40 40 0.3 0.15
+ 0.4
+ 0.2 2
+ 20 20 0.10
+ 0.2
+ 0.1
+ 0 0 0 0.05
+ 0.0 0 5000 10000 15000 20000 25000 30000 35000 40000
+ 0 10000 20000 30000 40000 0 10000 20000 30000 40000
+ epoch epoch epoch
+
+ (d) (e) (f)
+ train and validation accuracy vs epochs
+
+Figure 43: Multiplication dataset: Features and parameters normalization. Observe that a smaller temperature
+allows the model to fit the data better but experiences training instability. Temperature = 0.25 allows the model
+to fit and achieve high validation accuracy without suffering training instability.
+
+ temperature = 0.1 temperature = 0.25 temperature = 1.0
+ train validation last layer norm
+ train validation last layer norm
+ train validation last layer norm
+ 6 × 100 0.45
+ 1.2 0.250
+ 0.40 5.4 × 100 0.225
+ 100 1.0 4 × 100 0.35 5.2 × 100 0.200
+
+
+ last layer norm last layer norm
+ 0.8 3 × 100 0.30 5 × 100
+
+ last layer norm
+ 0.175
+ loss loss 0.25 0.150
+ 10 1 0.6 loss 4.8 × 100
+ 2 × 100 0.20 0.125
+ 0.4 4.6 × 100
+ 0.15 0.100
+ 10 2 0.2 0.10 4.4 × 100
+ 0.075
+ 0.0 100 0.05 4.2 × 100 0.050
+ 0 10000 20000 30000 40000 0 5000 10000 15000 20000 25000 30000 35000 0 5000 10000 15000 20000 25000
+ epoch epoch epoch
+
+ (a) (b) (c)
+ train and validation loss vs epochs
+ train validation last layer norm train validation last layer norm train validation last layer norm
+ 100 0.45 5 0.250
+ 100
+ 1.2 0.40 0.225
+ 80 80 4
+ 1.0 0.35 0.200
+
+
+
+ last layer norm last layer norm
+ 0.175
+
+ last layer norm
+ 60 0.8 60 0.30 3
+ accuracy accuracy accuracy
+ 0.25 0.150
+ 40 0.6 2
+ 40 0.20 0.125
+ 0.4 0.15 0.100
+ 20 20 1
+ 0.2 0.10 0.075
+ 0 0.0 0 0.05 0 0.050
+ 0 10000 20000 30000 40000 0 5000 10000 15000 20000 25000 30000 35000 0 5000 10000 15000 20000 25000
+ epoch epoch epoch
+
+ (d) (e) (f)
+ train and validation accuracy vs epochs
+
+Figure 44: Subtraction dataset: Features and parameters normalization. Observe that a smaller temperature
+allows the model to fit the data better but experiences training instability. Temperature = 0.25 allows the model
+to fit and achieve high validation accuracy. However, we observe training instability as can seen with weight
+norm dynamics.
+
+
+
+
+ 35
+
