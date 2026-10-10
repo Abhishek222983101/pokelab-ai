@@ -46,11 +46,26 @@ class Provider:
     name: str
     base_url: str
     models: list[str]
+    # Groq (and most OpenAI-compatible APIs) expect POST <base_url>/chat/completions.
+    # Elevate's gateway IS the completions endpoint — POSTing to a
+    # "/chat/completions" sub-path 405s. [BUG FOUND via a real curl
+    # against the live gateway: a POST with no path and the Bearer
+    # header returned a real completion; our code's extra path segment
+    # was the only thing wrong.]
+    completions_path: str = "/chat/completions"
 
-    def __init__(self, api_key: str, base_url: str, models: list[str], user_agent: str | None = None):
+    def __init__(
+        self,
+        api_key: str,
+        base_url: str,
+        models: list[str],
+        user_agent: str | None = None,
+        completions_path: str = "/chat/completions",
+    ):
         self.api_key = api_key
         self.base_url = base_url
         self.models = models
+        self.completions_path = completions_path
         headers = {"Authorization": f"Bearer {api_key}"}
         if user_agent:
             headers["User-Agent"] = user_agent
@@ -76,7 +91,7 @@ class Provider:
         }
         t0 = time.perf_counter()
         try:
-            resp = self._client.post("/chat/completions", json=body)
+            resp = self._client.post(self.completions_path, json=body)
         except httpx.TimeoutException as e:
             raise ProviderError(f"{self.name} timeout: {e}") from e
         elapsed = time.perf_counter() - t0
@@ -118,6 +133,7 @@ class ElevateProvider(Provider):
             api_key=api_key,
             base_url="https://elevate1-0.vercel.app/api/ai",
             models=["gpt-5.6-luna", "deepseek-v4-pro", "gpt-5-mini"],
+            completions_path="",  # the base_url IS the completions endpoint
         )
 
 

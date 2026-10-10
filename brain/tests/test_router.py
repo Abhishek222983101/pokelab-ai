@@ -121,3 +121,46 @@ def test_real_groq_through_the_router(tmp_path):
         assert requests >= 1
     finally:
         r.close()
+
+
+@pytest.mark.skipif(GROQ_KEY is None, reason="no GROQ_API_KEY_1 available")
+def test_real_cross_provider_route_with_per_provider_models(tmp_path):
+    """Elevate first (will succeed), with Groq as a configured but unused
+    fallback — each gets ITS OWN model name via the model dict, not a
+    single flat string."""
+    import os
+
+    def _load_env_key(name: str) -> str | None:
+        if os.environ.get(name):
+            return os.environ[name]
+        env_path = os.path.join(os.path.dirname(__file__), "..", "..", ".env")
+        if os.path.exists(env_path):
+            with open(env_path) as f:
+                for line in f:
+                    if line.strip().startswith(f"{name}="):
+                        return line.strip().split("=", 1)[1]
+        return None
+
+    elevate_key = _load_env_key("ELEVATE_TEAM_API_KEY")
+    if elevate_key is None:
+        pytest.skip("no ELEVATE_TEAM_API_KEY available")
+
+    from pokelab_brain.llm.providers import ElevateProvider
+
+    r = LlmRouter(
+        providers={"elevate": ElevateProvider(elevate_key), "groq": GroqProvider(GROQ_KEY)},
+        cache_db=tmp_path / "c.db", budget_db=tmp_path / "b.db",
+    )
+    try:
+        result = r.complete(
+            [{"role": "user", "content": "Reply with exactly the word: pong"}],
+            route=["elevate", "groq"],
+            model={"elevate": "gpt-5.6-luna", "groq": "openai/gpt-oss-20b"},
+            max_tokens=50,
+        )
+    finally:
+        r.close()
+
+    assert result.provider == "elevate"
+    assert result.model.startswith("gpt-5.6-luna")  # proves the Elevate-specific name was actually used
+    assert "pong" in result.content.lower()
