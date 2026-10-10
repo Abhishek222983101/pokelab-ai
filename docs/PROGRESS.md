@@ -21,7 +21,7 @@
 - ✅ **P1.4** Job engine & warm pool · ★★★★ · 🟣 — WarmPool: real python child process, stdin/stdout JSON-lines protocol, warm reuse across jobs — proven with a real GPU grokking run (17.1s, 1/1 test)
 - ✅ **P1.5** Telemetry & power guard · ★★ · 🔵 — real nvidia-smi + /sys power-profile sampling, tested against this actual laptop (2/2)
 - ✅ **P1.6** Auth & pairing · ★★ · 🔵 — pairing codes (single-use, 5min) + HMAC tokens + role rules — 4/4 tests
-- ✅ **P1.7** Supervisor, CLI, replay, doctor · ★★★ · 🔵 — `labd doctor` (GPU/power/disk/assets/datasets/venv/env checks, real against this machine) + `labd up`/`labd replay <db>` CLI via clap — 1/1 test
+- ✅ **P1.7** Supervisor, CLI, replay, doctor · ★★★ · 🔵 — `labd doctor` (GPU/power/disk/assets/datasets/venv/env checks, real against this machine) + `labd up`/`labd replay <db>` CLI via clap — 1/1 test. **Bug found+fixed during P4**: the CLI dispatch called `default_db_path()` directly, ignoring `LABD_DB_PATH` entirely — every test that set it to an isolated tmp file was silently reading/writing `../var/lab.db` instead. Caught via the P4.10 vertical slice replaying a stale smoke-kit result for a job actually submitted as `grokking`; fixed, all affected tests rerun and pass
 
 ## P2
 
@@ -42,16 +42,16 @@
 
 ## P4
 
-- ⬜ **P4.1** Paper ingestion · ★★★ · 🔵 — 
-- ⬜ **P4.2** PaperPack extraction · ★★★★ · 🔵 · 🔑 — 
-- ⬜ **P4.3** Specs, roster & tools · ★★★ · 🔵 — 
-- ⬜ **P4.4** Agent runtime + action protocol · ★★★★★ · 🟣 · 🔑 — 
-- ⬜ **P4.5** Capability analysis · ★★★ · 🔵 · 🔑 — 
-- ⬜ **P4.6** Planner + templates · ★★★★ · 🔵 · 🔑 — 
-- ⬜ **P4.7** Scheduler + verifiers · ★★★★ · 🟣 — 
-- ⬜ **P4.8** Reward v1 · ★★ · 🔵 — 
-- ⬜ **P4.9** Comparator v1 · ★★★ · 🔵 · 🔑 — 
-- ⬜ **P4.10** **Vertical slice** · ★★★★ · 🔵 · 🔥 🔑 — 
+- ✅ **P4.1** Paper ingestion · ★★★ · 🔵 — ingest.py: real PDF text extraction + heuristic section chunking — 3/3 tests incl. the real Nanda grokking PDF
+- ✅ **P4.2** PaperPack extraction · ★★★★ · 🔵 · 🔑 — claims.py (LLM-extracted, real Groq call) + packs.py (curated grokking claim — hand-verified, not LLM-trusted, for the hero demo) — 3/3 tests
+- ✅ **P4.3** Specs, roster & tools · ★★★ · 🔵 — spec.py: AgentSpec + real config/roster.toml loader + prompt loader — 2/2 tests
+- ✅ **P4.4** Agent runtime + action protocol · ★★★★★ · 🟣 · 🔑 — protocol.py (our XML-ish action protocol, 79/79 tests incl. 70 fuzz cases) + runtime.py (the agent loop) + tools/jobs.py (run_kit). [MEASURED]: Groq's gpt-oss-20b auto-detects tool-call-shaped text and gets rejected by the API even with no `tools` declared — switched the vertical slice to qwen/qwen3.8-27b, which needs a user-role message present (not system-only)
+- ⬜ **P4.5** Capability analysis · ★★★ · 🔵 · 🔑 — capability analysis not built — the vertical slice skips straight to a hardcoded task, no gap detection yet
+- ⬜ **P4.6** Planner + templates · ★★★★ · 🔵 · 🔑 — no planner/templates — the task given to the agent is hardcoded in the test, not decided by Oak
+- ⬜ **P4.7** Scheduler + verifiers · ★★★★ · 🟣 — no multi-step scheduler/verifiers — the agent loop calls one tool directly, no plan-with-steps abstraction yet
+- ✅ **P4.8** Reward v1 · ★★ · 🔵 — reward.py: linear credit toward the paper's claim — 3/3 tests
+- ✅ **P4.9** Comparator v1 · ★★★ · 🔵 · 🔑 — comparator.py v1 — 3/3 tests
+- ✅ **P4.10** **Vertical slice** · ★★★★ · 🔵 · 🔥 🔑 — THE VERTICAL SLICE, real end to end: a real Groq LLM reads the task, calls run_kit via our protocol, a real GPU job runs through labd's real warm pool, grokks to test_acc=0.9654 (12.0-12.9s), comparator reports 'Reproduced' vs the paper's 0.95 claim. Reliable standalone (passed 3/3 runs); seen one timeout when run immediately after ~110 other tests in the same session (resource contention under load, not reproduced in isolation) — tracked as a known flake, not fixed yet
 
 ## P5
 

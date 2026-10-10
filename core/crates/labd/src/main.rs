@@ -79,9 +79,21 @@ async fn main() -> anyhow::Result<()> {
 
     match cli.command.unwrap_or(Command::Up) {
         Command::Doctor => run_doctor(),
-        Command::Up => run_up(default_db_path(), false).await,
+        Command::Up => run_up(db_path_from_env(), false).await,
         Command::Replay { db_path } => run_up(db_path, true).await,
     }
+}
+
+/// `LABD_DB_PATH` if set, else the default. Lost in an earlier refactor
+/// (the CLI dispatch called `default_db_path()` directly) — every test
+/// that set `LABD_DB_PATH` to an isolated tmp file was silently writing
+/// to and reading from the shared `../var/lab.db` instead, replaying
+/// *other tests'* old jobs. Caught via the vertical-slice test returning
+/// a stale smoke-kit result for a job actually submitted as `grokking`.
+fn db_path_from_env() -> std::path::PathBuf {
+    std::env::var("LABD_DB_PATH")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|_| default_db_path())
 }
 
 /// `labd doctor` — exits non-zero if any check fails, so `just doctor` in CI

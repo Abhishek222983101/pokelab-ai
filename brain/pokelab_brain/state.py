@@ -5,6 +5,7 @@ reconnecting and replaying from seq 0 (or the last snapshot) — see
 """
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -30,12 +31,19 @@ class StateProjection:
 
     last_seq: int = 0
     jobs: dict[str, JobState] = field(default_factory=dict)
+    # set() exactly once, the instant a job reaches a terminal status —
+    # tools that submit a job and need to wait for it (agents/tools/jobs.py)
+    # await this instead of polling `jobs[job_id].status` in a loop.
+    _job_done_events: dict[str, asyncio.Event] = field(default_factory=dict)
 
     def apply(self, e: Event) -> None:
         self.last_seq = max(self.last_seq, e.seq)
         handler = getattr(self, f"_on_{e.kind.replace('.', '_')}", None)
         if handler is not None:
             handler(e)
+
+    def job_done_event(self, job_id: str) -> asyncio.Event:
+        return self._job_done_events.setdefault(job_id, asyncio.Event())
 
     def _on_job_metric(self, e: Event) -> None:
         job_id = e.payload["job_id"]
@@ -52,3 +60,4 @@ class StateProjection:
         job.status = e.payload["status"]
         job.final = e.payload.get("final")
         job.error_sig = e.payload.get("error_sig")
+        self.job_done_event(job_id).set()
