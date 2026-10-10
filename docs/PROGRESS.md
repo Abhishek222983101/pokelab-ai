@@ -104,12 +104,12 @@
 
 ## P10
 
-- ⬜ **P10.1** Remote runner protocol · ★★ · 🔵 — 
-- ⬜ **P10.2** Kaggle runner · ★★★ · 🔵 · 🔑 🔥(remote) — 
-- ⬜ **P10.3** Colab runner · ★★★ · 🔵 · 🔑 🔥(remote) — 
-- ⬜ **P10.4** Pokégear PWA · ★★★ · 🔵 — 
-- ⬜ **P10.5** Voice redirect · ★★ · 🔵 · 🔑 — 
-- ⬜ **P10.6** Tunnel & view links · ★★ · 🔵 · 🌐 — 
+- ✅ **P10.1** Remote runner protocol · ★★ · 🔵 — remote/dispatch.py: one shape for every backend (local/Colab/Kaggle all emit the same protocol lines), labml's Compute Router decides which — 3/3 tests
+- ✅ **P10.2** Kaggle runner · ★★★ · 🔵 · 🔑 🔥(remote) — remote/kaggle_runner.py: real kaggle kernels push/status/output round trip. Bug found+fixed: Kaggle's kernel log is its own JSON-array wrapper around stdout chunks, not raw JSON-lines — looked right at a glance, wasn't; caught by actually reading the downloaded file. 2/2 tests against a real captured log
+- ✅ **P10.3** Colab runner · ★★★ · 🔵 · 🔑 🔥(remote) — remote/colab_runner.py: real `colab run` round trip on a fresh free VM, confirmed it actually ran remotely (returned a different kernel version than this machine) — 1/1 real test, ~11-20s
+- 🟡 **P10.4** Pokégear PWA · ★★★ · 🔵 — manifest.json + an /m shell page — no icons, no pairing/approve/redirect wiring yet
+- ✅ **P10.5** Voice redirect · ★★ · 🔵 · 🔑 — voice.py: a real call to Groq's Whisper endpoint (multipart upload, auth, JSON response) — 1/1 real test. Accuracy untested (no real speech sample available in this environment, only a test tone) — the plumbing is proven, transcription quality is not
+- ✅ **P10.6** Tunnel & view links · ★★ · 🔵 · 🌐 — scripts/tunnel.sh: a real cloudflared tunnel (--protocol http2, per the earlier measured QUIC-timeout finding) proxying actual HTTP traffic from a public trycloudflare.com URL to a running labd — verified with a real curl through the tunnel
 
 ## P11
 
