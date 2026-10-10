@@ -8,7 +8,7 @@
 
 - ✅ **P0.1** Repo & workspace skeleton · ★ · 🔵 — repo tree + README + justfile created
 - ✅ **P0.2** Python env · ★ · 🔵 · 🌐 — uv venvs for brain/labml/workers, each installs + pytest runs
-- ⬜ **P0.3** Node & web fork · ★ · 🔵 — 
+- ✅ **P0.3** Node & web fork · ★ · 🔵 — web/ Next 16.3.8 app, Phaser ~3.80.1 + grid-engine 2.45.0 EXACT (per D-18) installed; `npm run build` produces a static export; 0 npm audit vulnerabilities after bumping vitest to 5.0.3
 - ✅ **P0.4** Secrets & config · ★ · 🔵 · 🔑 — secrets generated into .env, config/*.toml written
 - ✅ **P0.5** Fetch everything (offline-first) · ★★ · 🔵 · 🌐 — datasets/papers/sprites verified on disk; fetch_*.sh re-verify on a fresh machine
 - 🟡 **P0.6** Contracts skeleton · ★★ · 🔵 — no contracts/ package yet — events/commands only typed ad hoc in lab-store/lab-jobs so far
@@ -85,11 +85,11 @@
 
 ## P8
 
-- ⬜ **P8.1** Net & store · ★★★ · 🔵 — 
-- ⬜ **P8.2** Static export served by labd · ★★ · 🔵 — 
-- ⬜ **P8.3** Layout & HUD · ★★ · 🔵 — 
-- ⬜ **P8.4** Panels I · ★★★ · 🔵 — 
-- ⬜ **P8.5** Panels II · ★★★ · 🔵 — 
+- ✅ **P8.1** Net & store · ★★★ · 🔵 — lib/labSocket.ts (real WS client: hello/since, resync, reconnect with backoff) + lib/store.ts (zustand, event-fold state — same discipline as brain's state.py) — 4/4 vitest
+- ✅ **P8.2** Static export served by labd · ★★ · 🔵 — labd now serves web/out/ via tower-http's ServeDir as a fallback alongside the API routes — real test (boots labd, fetches the actual built HTML). Bug found+fixed: without `trailingSlash: true` in next.config, /console exported as console.html + an empty console/ dir, and a static file server 404'd on /console/ (no index inside) — fixed, verified with a real curl AND a Rust test
+- ✅ **P8.3** Layout & HUD · ★★ · 🔵 — a live connection-status badge + last-seq counter on /console, driven by real WS events
+- ✅ **P8.4** Panels I · ★★★ · 🔵 — the job panel: status pill, per-metric latest value + point count, pretty-printed final result — all from the real event-fold store
+- 🟡 **P8.5** Panels II · ★★★ · 🔵 — only one panel built (jobs); a separate agent/roster panel is not started
 
 ## P9
 
