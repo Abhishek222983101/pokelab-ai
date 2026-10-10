@@ -1,0 +1,47 @@
+name: reproduce
+steps:
+  - id: s1
+    cap: paper_read
+    title: "Ingest the paper"
+    accept: ["file_exists:chunks"]
+    after: []
+  - id: s2
+    cap: spec_extract
+    title: "Read & extract claims/spec"
+    accept: ["json_schema_valid:pack"]
+    after: ["s1"]
+  - id: s3
+    cap: implement
+    title: "Configure/implement the kit"
+    accept: ["config_validates:kit"]
+    after: ["s2"]
+  - id: s4
+    cap: env_setup
+    title: "Environment check"
+    accept: ["job_completed:smoke"]
+    after: ["s3"]
+  - id: s5
+    cap: run_experiment
+    title: "Smoke run"
+    accept: ["job_completed:smoke", "metric_present:loss"]
+    after: ["s4"]
+  - id: s6
+    cap: run_experiment
+    title: "Full run"
+    accept: ["job_completed:full", "metric_threshold:test_acc,>=,0.9"]
+    after: ["s5"]
+  - id: s7
+    cap: analyze
+    title: "Analyse the result"
+    accept: ["metric_present:test_acc"]
+    after: ["s6"]
+  - id: s8
+    cap: repro_compare
+    title: "Compare against the paper's claim"
+    accept: ["numbers_match_evidence"]
+    after: ["s7"]
+  - id: s9
+    cap: report_write
+    title: "Write the report"
+    accept: ["report_has_sections:summary,evidence,narrative"]
+    after: ["s8"]

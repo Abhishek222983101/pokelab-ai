@@ -1,0 +1,29 @@
+name: compare
+steps:
+  - id: s1
+    cap: experiment_design
+    title: "Align conditions (same budget/data/seeds)"
+    accept: ["json_schema_valid:conditions"]
+    after: []
+  - id: s2
+    cap: run_experiment
+    title: "Run A"
+    accept: ["job_completed:run_a"]
+    after: ["s1"]
+    parallel_group: "ab"
+  - id: s3
+    cap: run_experiment
+    title: "Run B"
+    accept: ["job_completed:run_b"]
+    after: ["s1"]
+    parallel_group: "ab"
+  - id: s4
+    cap: analyze
+    title: "Statistical comparison"
+    accept: ["metric_present:p_value"]
+    after: ["s2", "s3"]
+  - id: s5
+    cap: report_write
+    title: "Verdict report"
+    accept: ["report_has_sections:verdict"]
+    after: ["s4"]

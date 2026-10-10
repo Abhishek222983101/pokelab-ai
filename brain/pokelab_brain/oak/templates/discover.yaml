@@ -1,0 +1,22 @@
+name: discover
+steps:
+  - id: s1
+    cap: paper_discover
+    title: "Scout searches arXiv"
+    accept: ["json_schema_valid:candidates"]
+    after: []
+  - id: s2
+    cap: literature_search
+    title: "Rank candidates"
+    accept: ["json_schema_valid:ranked"]
+    after: ["s1"]
+  - id: s3
+    cap: paper_read
+    title: "Ingest top-k"
+    accept: ["file_exists:chunks"]
+    after: ["s2"]
+  - id: s4
+    cap: notes
+    title: "Summaries in the Library"
+    accept: ["report_has_sections:summaries"]
+    after: ["s3"]

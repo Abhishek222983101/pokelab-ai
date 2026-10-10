@@ -1,0 +1,33 @@
+name: whatif
+steps:
+  - id: s1
+    cap: whatif_design
+    title: "Parse the what-if question"
+    accept: ["json_schema_valid:question"]
+    after: []
+  - id: s2
+    cap: experiment_design
+    title: "Navigator space proposal"
+    accept: ["json_schema_valid:space"]
+    after: ["s1"]
+  - id: s3
+    cap: run_experiment
+    title: "Run the batch (parallel, Oracle-pruned)"
+    accept: ["job_completed:batch"]
+    after: ["s2"]
+    parallel_group: "batch"
+  - id: s4
+    cap: analyze
+    title: "Analyse sensitivity"
+    accept: ["metric_present:sensitivity"]
+    after: ["s3"]
+  - id: s5
+    cap: explain
+    title: "Explain the result"
+    accept: ["report_has_sections:explanation"]
+    after: ["s4"]
+  - id: s6
+    cap: report_write
+    title: "Write the report"
+    accept: ["report_has_sections:summary,evidence,narrative"]
+    after: ["s5"]
