@@ -1,0 +1,40 @@
+# The grokking paper's 17-item difference checklist (§6.10.2a). Each item
+# is a candidate explanation for "why did our number differ from the
+# paper's" — used to seed hypotheses before we even look at our config
+# diff.
+paper_id: grokking
+items:
+  - id: optimizer_regime
+    description: "AdamW vs Adam+L2 — these are NOT equivalent despite looking similar"
+  - id: adamw_vs_adam_l2
+    description: "weight decay applied as AdamW (decoupled) vs Adam+L2 (coupled into the gradient)"
+  - id: steps_vs_epochs
+    description: "the paper may report epochs, we report steps — easy to silently mismatch"
+  - id: budget_truncation
+    description: "did the run actually finish, or get cut off by a step/time budget before grokking?"
+  - id: seed_variance
+    description: "grokking's onset step is seed-sensitive; one seed is not the full story"
+  - id: data_fraction_sensitivity
+    description: "frac (train/test split) strongly affects whether/when grokking happens"
+  - id: dataset_definition
+    description: "modular addition vs multiplication vs a different group operation"
+  - id: precision_softmax_collapse
+    description: "fp16/bf16 vs fp32 can change softmax behavior near convergence"
+  - id: adam_epsilon
+    description: "Adam's eps term interacts with weight decay at small gradients"
+  - id: architecture_tokenisation
+    description: "1-layer transformer vs MLP; how '=' and positions are tokenised"
+  - id: init_scale
+    description: "embedding/weight init scale affects the initial loss landscape"
+  - id: weight_decay_scope
+    description: "decay applied to all params vs excluding embeddings/biases"
+  - id: lr_warmup
+    description: "a warm-up schedule vs a flat learning rate"
+  - id: metric_threshold_definitions
+    description: "what exactly counts as 'reached' — >=95% vs >99%, which eval set"
+  - id: regularisers
+    description: "dropout, label smoothing, or other regularisers the paper used/omitted"
+  - id: paper_errata
+    description: "[RESEARCH] Nanda's own weight-decay timing numbers are internally inconsistent — don't cite them as ground truth"
+  - id: hardware_determinism
+    description: "GPU non-determinism (cuDNN algorithms, atomics) changes the exact grok step run to run"
