@@ -2,7 +2,7 @@
 name = "pokelab-labml"
 version = "0.1.0"
 requires-python = ">=3.11"
-dependencies = ["numpy>=2.0", "scikit-learn>=1.5", "scipy>=1.14"]
+dependencies = ["numpy>=2.0", "scikit-learn>=1.5", "scipy>=1.14", "pydantic>=2.9"]
 
 [dependency-groups]
 dev = ["pytest>=8.3"]

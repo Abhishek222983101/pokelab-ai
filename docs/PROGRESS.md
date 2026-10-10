@@ -55,15 +55,15 @@
 
 ## P5
 
-- ⬜ **P5.1** Curve library sweep · ★★★ · 🔵 · 🔥 🧠 — 
-- ⬜ **P5.2** Oracle (gbm + seq + param) · ★★★★★ · 🟣 · 🔥 🧠 — 
-- ⬜ **P5.3** Navigator · ★★★★ · 🟣 · 🧠 — 
-- ⬜ **P5.4** Bug Gym + Medic · ★★★★ · 🔵 · 🔥 🧠 — 
-- ⬜ **P5.5** Selector · ★★★ · 🔵 · 🧠 — 
-- ⬜ **P5.6** Scout · ★★★ · 🔵 · 🧠 — 
-- ⬜ **P5.7** Compute Router · ★★ · 🔵 · 🧠 — 
-- ⬜ **P5.8** Analysts · ★★★ · 🔵 · 🧠 — 
-- ⬜ **P5.9** labml CLI, registry, reports, W&B · ★★ · 🔵 · 🔑 — 
+- 🟡 **P5.1** Curve library sweep · ★★★ · 🔵 · 🔥 🧠 — a real 4-config sweep (frac 0.3/0.4/0.5/0.6) ran on this GPU through the actual warm pool (one process, 4 jobs) — real curves captured to labml/tests/fixtures/grok_sweep.json; the full hundreds-of-runs sweep the spec calls for hasn't run
+- 🟡 **P5.2** Oracle (gbm + seq + param) · ★★★★★ · 🟣 · 🔥 🧠 — features.py + gbm.py (GBM with a logistic-regression fallback below 50 samples) — pipeline works end to end, trained on the 4 real curves above (2/2 tests); NOT validated at the scale needed to trust its forecasts
+- ✅ **P5.3** Navigator · ★★★★ · 🟣 · 🧠 — navigator/gp.py: real GaussianProcessRegressor + UCB acquisition, fit on the real 4-point sweep — correctly ranks frac=0.5 above frac=0.3 (matches the real outcomes) — 2/2 tests
+- ✅ **P5.4** Bug Gym + Medic · ★★★★ · 🔵 · 🔥 🧠 — medic/signatures.py + classifier.py: 6 regex rules (oom/unknown_kit/nan/cuda_error/network/missing_file) — 5/5 tests
+- ✅ **P5.5** Selector · ★★★ · 🔵 · 🧠 — selector/thompson.py: Beta-Bernoulli Thompson sampling, converges to the better agent over 200 simulated outcomes — 3/3 tests
+- ✅ **P5.6** Scout · ★★★ · 🔵 · 🧠 — scout/coverage.py: capability-gap detection + a repeat-request threshold before recommending a spawn — 3/3 tests
+- ✅ **P5.7** Compute Router · ★★ · 🔵 · 🧠 — router/placement.py: local/Kaggle/Colab rule set, encodes the [MEASURED] '3rd concurrent job is slower' fact — 5/5 tests
+- ✅ **P5.8** Analysts · ★★★ · 🔵 · 🧠 — analysts/grok_signature.py: detects the real train-saturates-then-test-transitions shape on an ACTUAL captured run (train sat. step 400, test transition step 2800) — 3/3 tests
+- ✅ **P5.9** labml CLI, registry, reports, W&B · ★★ · 🔵 · 🔑 — cli.py `labml train-all`: trains/reports every model, ran for real -> var/reports/labml.json — 1/1 test
 
 ## P6
 
