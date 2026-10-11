@@ -10,6 +10,12 @@ function load(name: string): LabEvent {
 }
 
 describe("contract fixtures parse as LabEvent (same files as Python/Rust)", () => {
+  it("job_started_event.json", () => {
+    const e = load("job_started_event.json");
+    expect(e.kind).toBe("job.started");
+    expect(e.payload.kit).toBe("grokking");
+  });
+
   it("job_metric_event.json", () => {
     const e = load("job_metric_event.json");
     expect(e.kind).toBe("job.metric");

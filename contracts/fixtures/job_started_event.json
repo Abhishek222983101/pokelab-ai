@@ -1,0 +1,12 @@
+{
+  "seq": 1,
+  "ts": "2026-10-11T04:53:40.123Z",
+  "kind": "job.started",
+  "v": 1,
+  "project": "grokking-demo",
+  "actor": "labd",
+  "corr": null,
+  "causation": null,
+  "payload": {"job_id": "job-1", "kit": "grokking", "config": {"model": "mlp", "p": 53}},
+  "display": null
+}

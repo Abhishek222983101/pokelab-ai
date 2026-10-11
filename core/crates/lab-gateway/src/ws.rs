@@ -297,6 +297,22 @@ async fn handle_job_submit(
             };
             send_to_brain(tx_sock, &reply).await;
 
+            // [BUG FOUND]: job.metric/job.log/job.done events never carried
+            // which kit a job was, so any client-side UI keying off a job's
+            // kit (e.g. the game's per-paper Gym leaders, P11.6) had no real
+            // event to source that from. A real job.started event, published
+            // once here and persisted like any other event, fixes it.
+            let _ = state.hub.publish(lab_store::NewEvent {
+                kind: "job.started".to_string(),
+                v: 1,
+                project: project.clone(),
+                actor: "labd".to_string(),
+                corr: None,
+                causation: None,
+                payload: serde_json::json!({"job_id": job_id, "kit": kit, "config": config}),
+                display: None,
+            });
+
             let hub = state.hub.clone();
             let project_for_task = project.clone();
             let job_id_for_task = job_id.clone();

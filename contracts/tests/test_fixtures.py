@@ -13,6 +13,13 @@ def _load(name: str) -> dict:
         return json.load(f)
 
 
+def test_job_started_fixture_validates_as_event():
+    data = _load("job_started_event.json")
+    event = Event(**data)
+    assert event.kind in ALL_KNOWN_KINDS
+    assert event.payload["kit"] == "grokking"
+
+
 def test_job_metric_fixture_validates_as_event():
     data = _load("job_metric_event.json")
     event = Event(**data)
@@ -38,6 +45,6 @@ def test_agent_spawned_fixture_validates_as_event_and_typed_payload():
 def test_every_fixture_file_is_covered_by_a_test():
     """If a fixture gets added without a corresponding validation, this
     test fails loudly instead of the fixture silently rotting."""
-    tested = {"job_metric_event.json", "job_done_event.json", "agent_spawned_event.json"}
+    tested = {"job_started_event.json", "job_metric_event.json", "job_done_event.json", "agent_spawned_event.json"}
     on_disk = {f for f in os.listdir(FIXTURES_DIR) if f.endswith(".json")}
     assert on_disk == tested, f"untested fixtures: {on_disk - tested}"
