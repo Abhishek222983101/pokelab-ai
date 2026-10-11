@@ -5,14 +5,18 @@ import { LabSocket } from "@/lib/labSocket";
 import { useLabStore } from "@/lib/store";
 import { recordPanelRender } from "@/lib/perf";
 
+// NEXT_PUBLIC_BACKEND_HOST lets a static deploy (e.g. Vercel, which can't
+// run labd itself) point at wherever the real backend actually is —
+// falls back to same-origin for a normal `labd up` serving this build.
+const BACKEND_HOST = process.env.NEXT_PUBLIC_BACKEND_HOST;
 const WS_URL =
   typeof window !== "undefined"
-    ? `${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.host}/api/ws`
+    ? `${window.location.protocol === "https:" ? "wss" : "ws"}://${BACKEND_HOST ?? window.location.host}/api/ws`
     : "ws://localhost:7700/api/ws";
 
 function apiUrl(path: string): string {
   if (typeof window === "undefined") return path;
-  return `${window.location.protocol}//${window.location.host}${path}`;
+  return `${window.location.protocol}//${BACKEND_HOST ?? window.location.host}${path}`;
 }
 
 export default function ConsolePage() {

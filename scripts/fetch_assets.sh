@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# Sprites, cries and trainer art. Pre-downloaded already for this demo
+# Sprites, cries and trainer art. Showdown (battle sprites + trainer portraits)
+# is pre-mirrored; PMD walkers, FireRed people and cries come from
+# scripts/fetch_sprites.py. Everything is pre-downloaded already for this demo
 # (campus Wi-Fi blocks pokemonshowdown.com — see docs §11.3); this script
 # documents and re-verifies the layout, and is what `just fetch` runs on a
 # fresh machine with a working connection.
@@ -14,3 +16,7 @@ else
        "(requires a connection that isn't behind a Games-category block)"
   exit 1
 fi
+
+# PMD walking sprites, FireRed overworld people, PokeAPI cries
+# (raw.githubusercontent.com; idempotent — skips files already on disk)
+python3 scripts/fetch_sprites.py

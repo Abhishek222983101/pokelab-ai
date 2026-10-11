@@ -40,8 +40,9 @@ def json_schema_valid(args: str, context: dict[str, Any]) -> CheckResult:
 
 
 def config_validates(args: str, context: dict[str, Any]) -> CheckResult:
-    kit_name = args
-    known_kits = context.get("known_kits", {"smoke", "grokking", "distill", "nerf", "materials", "arena"})
+    # templates say "config_validates:kit" = whichever kit this project resolved to
+    kit_name = context.get("kit", args) if args == "kit" else args
+    known_kits = context.get("known_kits", {"smoke", "grokking", "distillation", "nerf", "materials", "arena"})
     ok = kit_name in known_kits
     return CheckResult(ok, f"kit {kit_name!r} known={ok}")
 

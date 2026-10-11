@@ -49,9 +49,10 @@ doctor:
 
 test:
     cd core && cargo test
-    uv run --project brain pytest -q
-    uv run --project labml pytest -q
-    uv run --project workers pytest -q
+    cd contracts && uv run pytest -q
+    cd brain && uv run pytest -q
+    cd labml && uv run pytest -q
+    cd workers && uv run pytest -q
     cd web && npx vitest run
 
 e2e:

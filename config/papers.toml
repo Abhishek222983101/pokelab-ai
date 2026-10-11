@@ -9,7 +9,7 @@ hero = true
 [[pack]]
 id = "distillation"
 title = "Distilling the Knowledge in a Neural Network (Hinton et al.)"
-kit = "distill"
+kit = "distillation"
 
 [[pack]]
 id = "nerf"

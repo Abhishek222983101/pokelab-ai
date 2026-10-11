@@ -8,4 +8,8 @@ LIFECYCLE_EVENT_KINDS = {
     "agent.spawned", "agent.retired", "agent.evolved", "agent.merged",
     "agent.refine_recommended", "agent.merge_recommended",
 }
-ALL_KNOWN_KINDS = JOB_EVENT_KINDS | LIFECYCLE_EVENT_KINDS
+# Oak's runtime (brain/pokelab_brain/oak/runtime.py + scheduler emit) — the §2.7 binding-table causes
+TASK_EVENT_KINDS = {"agent.task_started", "agent.task_finished", "agent.task_failed", "agent.rewarded"}
+PROJECT_EVENT_KINDS = {"project.requested", "project.created", "project.rejected", "project.completed", "project.badge_awarded"}
+HUMAN_EVENT_KINDS = {"human.feedback"}
+ALL_KNOWN_KINDS = JOB_EVENT_KINDS | LIFECYCLE_EVENT_KINDS | TASK_EVENT_KINDS | PROJECT_EVENT_KINDS | HUMAN_EVENT_KINDS

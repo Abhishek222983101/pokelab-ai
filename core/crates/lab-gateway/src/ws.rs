@@ -26,7 +26,15 @@ enum ClientMsg {
     /// endpoint yet — any connected client can send this today; tracked
     /// honestly in docs/PROGRESS.md P10.4 rather than silently assumed.
     #[serde(rename = "command")]
-    Command { command: String, job_id: Option<String> },
+    Command {
+        command: String,
+        job_id: Option<String>,
+        /// `request` (a new research request in plain words) and `feedback` carry free text.
+        text: Option<String>,
+        /// `feedback`: which agent/step the 👍/👎 is about.
+        agent_id: Option<String>,
+        value: Option<f64>,
+    },
 }
 
 #[derive(Serialize)]
@@ -77,8 +85,8 @@ async fn client_ws_loop(socket: WebSocket, state: AppState) {
             incoming = rx_sock.next() => {
                 match incoming {
                     Some(Ok(Message::Text(text))) => {
-                        if let Ok(ClientMsg::Command { command, job_id }) = serde_json::from_str::<ClientMsg>(&text) {
-                            handle_client_command(&mut tx_sock, &state, &command, job_id).await;
+                        if let Ok(ClientMsg::Command { command, job_id, text, agent_id, value }) = serde_json::from_str::<ClientMsg>(&text) {
+                            handle_client_command(&mut tx_sock, &state, &command, job_id, text, agent_id, value).await;
                         }
                     }
                     Some(Ok(_)) => continue,
@@ -134,7 +142,47 @@ async fn handle_client_command(
     state: &AppState,
     command: &str,
     job_id: Option<String>,
+    text: Option<String>,
+    agent_id: Option<String>,
+    value: Option<f64>,
 ) {
+    // Human intents (§3.3.2: cmd.* → brain): labd only records them as events; Oak acts on them.
+    if command == "request" || command == "feedback" {
+        let (kind, payload) = match command {
+            "request" => match text.as_deref().map(str::trim) {
+                Some(t) if !t.is_empty() => ("project.requested", serde_json::json!({ "text": t })),
+                _ => {
+                    send_command_result(tx_sock, command, false, "request needs non-empty text".to_string()).await;
+                    return;
+                }
+            },
+            _ => match (agent_id, value) {
+                (Some(a), Some(v)) if (0.0..=1.0).contains(&v) => {
+                    ("human.feedback", serde_json::json!({ "agent_id": a, "value": v, "note": text }))
+                }
+                _ => {
+                    send_command_result(tx_sock, command, false, "feedback needs agent_id and value in [0,1]".to_string()).await;
+                    return;
+                }
+            },
+        };
+        let published = state.hub.publish(lab_store::NewEvent {
+            kind: kind.to_string(),
+            v: 1,
+            project: None,
+            actor: "human".to_string(),
+            corr: None,
+            causation: None,
+            payload,
+            display: None,
+        });
+        let (ok, detail) = match published {
+            Ok(e) => (true, format!("{kind} recorded as seq {}", e.seq)),
+            Err(e) => (false, format!("publish failed: {e}")),
+        };
+        send_command_result(tx_sock, command, ok, detail).await;
+        return;
+    }
     let (ok, detail) = match (command, job_id, &state.warm_pool) {
         ("kill_job", None, _) => (false, "kill_job needs a job_id".to_string()),
         ("kill_job", Some(_), None) => (false, "no warm pool configured".to_string()),

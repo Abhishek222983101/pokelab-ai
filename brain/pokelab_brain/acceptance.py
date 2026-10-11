@@ -150,9 +150,11 @@ ACCEPTANCE_CRITERIA: list[AcceptanceCriterion] = [
     ),
     AcceptanceCriterion(
         "AC-21", "Interface binding & scale (>=6 agents, >=3 runs, 2 projects @ >=50fps)", "partial",
-        ["web/game/__tests__/bindingAudit.test.ts"],
-        note="the event-id binding discipline (every on-screen thing traces to a real "
-        "event, structurally enforced) is real and tested; the specific scale target "
+        ["web/lib/__tests__/labReducer.test.ts", "web/lab/__tests__/placement.test.ts"],
+        note="binding is enforced structurally: the store changes only through a pure event "
+        "reducer, and every agent's map/station is a pure function of it (lab/placement.ts); "
+        "the game is being rebuilt on the PokeStonks engine (docs/GAME-DESIGN.md) and its "
+        "scene-level audit returns with it. The specific scale target "
         "(6 agents/3 runs/2 projects at once, >=50fps) has not been load-tested — "
         "web/scripts/perf_probe.mjs (P12.3) measured 60fps but under light load "
         "(2-3 real jobs), not this AC's named scale.",
