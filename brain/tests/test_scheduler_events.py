@@ -56,3 +56,23 @@ def test_no_emit_keeps_the_scheduler_silent():
     steps = [PlanStep(id="s1", cap="paper_read", title="Read", accept=[])]
     result = asyncio.run(run_plan(steps, {"a": ["paper_read"]}, ThompsonSelector(rng=np.random.default_rng(0)), {}))
     assert result.completed == ["s1"]
+
+
+def test_promotion_rule_evolves_only_with_enough_high_rewards():
+    import asyncio
+    from pokelab_brain.oak.runtime import OakRuntime
+    from pokelab_brain.state import StateProjection
+
+    class FakeBus:
+        def __init__(self): self.sent = []
+        async def publish(self, events, req): self.sent.extend(events)
+
+    st = StateProjection()
+    st.agents = {"charmander": {"species": "charmander", "version": 1, "status": "active"},
+                 "zubat": {"species": "zubat", "version": 1, "status": "active"},
+                 "squirtle": {"species": "squirtle", "version": 1, "status": "active"}}
+    st.rewards = [("charmander", 1.0)] * 8 + [("zubat", 1.0)] * 7 + [("squirtle", 0.5)] * 9
+    bus = FakeBus()
+    asyncio.run(OakRuntime(bus, st).maybe_evolve())
+    evolved = [(e["payload"]["agent_id"], e["payload"]["species"], e["payload"]["version"]) for e in bus.sent if e["kind"] == "agent.evolved"]
+    assert evolved == [("charmander", "charmeleon", 2)]  # zubat: too few rewards, squirtle: mean too low

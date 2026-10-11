@@ -53,6 +53,21 @@ BASE_TEAM: list[dict[str, Any]] = [
      "capabilities": ["literature_search", "paper_discover"]},
 ]
 
+# Evolution lines (§2.4), same as web/lib/roster.ts: promoting an agent = its next species.
+LINES: dict[str, list[str]] = {
+    "pichu": ["pichu", "pikachu", "raichu"], "pikachu": ["pichu", "pikachu", "raichu"], "raichu": ["pichu", "pikachu", "raichu"],
+    "charmander": ["charmander", "charmeleon", "charizard"], "charmeleon": ["charmander", "charmeleon", "charizard"],
+    "bulbasaur": ["bulbasaur", "ivysaur", "venusaur"], "ivysaur": ["bulbasaur", "ivysaur", "venusaur"],
+    "squirtle": ["squirtle", "wartortle", "blastoise"], "wartortle": ["squirtle", "wartortle", "blastoise"],
+    "abra": ["abra", "kadabra", "alakazam"], "kadabra": ["abra", "kadabra", "alakazam"],
+    "porygon": ["porygon", "porygon2"], "magnemite": ["magnemite", "magneton"],
+    "hoothoot": ["hoothoot", "noctowl"], "zubat": ["zubat", "golbat", "crobat"], "golbat": ["zubat", "golbat", "crobat"],
+}
+# Promotion rule (rule-based; the designed shadow-evaluation gate is NOT implemented): an agent evolves once
+# it has EVOLVE_MIN_REWARDS rewarded tasks since it last evolved with a mean reward >= EVOLVE_MIN_MEAN.
+EVOLVE_MIN_REWARDS = 8
+EVOLVE_MIN_MEAN = 0.90
+
 IDLE_BEFORE_ACTING_S = 0.6  # wait for the replay burst to settle before acting on "pending" work
 
 
@@ -128,6 +143,26 @@ class OakRuntime:
                 finally:
                     self._busy = False
 
+    async def maybe_evolve(self) -> None:
+        for aid, a in list(self.state.agents.items()):
+            if a.get("status") != "active":
+                continue
+            line = LINES.get(a.get("species", ""))
+            if not line or line.index(a["species"]) + 1 >= len(line):
+                continue
+            rewards = [r for who, r in self.state.rewards if who == aid][int(a.get("evolved_at_rewards", 0)):]
+            if len(rewards) < EVOLVE_MIN_REWARDS:
+                continue
+            mean = sum(rewards) / len(rewards)
+            if mean < EVOLVE_MIN_MEAN:
+                continue
+            nxt = line[line.index(a["species"]) + 1]
+            await self.publish("agent.evolved", {
+                "agent_id": aid, "from_species": a["species"], "species": nxt, "version": int(a.get("version", 1)) + 1,
+                "evidence": {"n": len(rewards), "mean_reward": round(mean, 4)},
+                "rule": f">= {EVOLVE_MIN_REWARDS} rewarded tasks with mean reward >= {EVOLVE_MIN_MEAN} (rule-based promotion)",
+            })
+
     # ------------------------------------------------------------------ one project
     async def handle_request(self, seq: int, text: str) -> None:
         paper = paper_for(text)
@@ -178,6 +213,7 @@ class OakRuntime:
             "job_id": full.get("job_id"), "report": str(run.workdir / "report.md"),
             "steps": {"completed": result.completed, "failed": result.failed, "escalated": result.escalated},
         }, project=project_id)
+        await self.maybe_evolve()
         if run.verdict == "REPRODUCED":
             await self.publish("project.badge_awarded", {
                 "project_id": project_id, "paper": paper, "kit": profile.kit, "value": run.value, "claim": profile.claim,

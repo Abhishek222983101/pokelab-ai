@@ -68,4 +68,12 @@ describe("labReducer", () => {
     expect(again).toBe(v);
     expect(again.agents.zubat.status).toBe("retired");
   });
+
+  it("agent.evolved swaps the species and bumps the version, nothing else", () => {
+    const v = fold([
+      ev("agent.spawned", { agent_id: "charmander", species: "charmander", role: "Implementer", version: 1, capabilities: ["implement"] }),
+      ev("agent.evolved", { agent_id: "charmander", from_species: "charmander", species: "charmeleon", version: 2, evidence: { n: 8, mean_reward: 0.95 } }),
+    ]);
+    expect([v.agents.charmander.species, v.agents.charmander.version, v.agents.charmander.role]).toEqual(["charmeleon", 2, "Implementer"]);
+  });
 });
