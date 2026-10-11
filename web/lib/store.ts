@@ -5,6 +5,7 @@
  */
 import { create } from "zustand";
 import type { LabEvent } from "./labSocket";
+import { recordEventLatency } from "./perf";
 
 export interface JobViewState {
   jobId: string;
@@ -47,8 +48,9 @@ export const useLabStore = create<LabStoreState>((set) => ({
 
   setConnectionStatus: (s) => set({ connectionStatus: s }),
 
-  applyEvent: (e) =>
-    set((state) => {
+  applyEvent: (e) => {
+      recordEventLatency(e.ts);
+      return set((state) => {
       const next: LabStoreState = {
         ...state,
         lastSeq: Math.max(state.lastSeq, e.seq),
@@ -123,5 +125,6 @@ export const useLabStore = create<LabStoreState>((set) => ({
       }
 
       return next;
-    }),
+    });
+  },
 }));
