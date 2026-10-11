@@ -51,6 +51,15 @@ export interface PaperView {
   analysis: { jobId: string; metric: string; claim: number; points: number; claimHitStep: number | null; trainSaturatedStep: number | null; delaySteps: number | null } | null;
 }
 
+export interface ExploreCell {
+  wd: number; frac: number; jobId: string | null; status: string | null;
+  testAcc: number | null; trainAcc: number | null; claimHitStep: number | null; trainSaturatedStep: number | null;
+}
+export interface ExploreView {
+  projectId: string; title: string; claim: number; wds: number[]; fracs: number[];
+  cells: ExploreCell[]; lines: string[];
+}
+
 export interface AgentViewState {
   agentId: string;
   species: string;
@@ -105,6 +114,7 @@ export interface LabView {
   agents: Record<string, AgentViewState>;
   projects: Record<string, ProjectViewState>;
   papers: Record<string, PaperView>;
+  explore: Record<string, ExploreView>;
   /** Requests Oak declined, with its reason (shown, never silently dropped). */
   rejected: Array<{ seq: number; text: string; reason: string }>;
   recentEvents: LabEvent[]; // most-recent-first, capped
@@ -114,7 +124,7 @@ export const MAX_RECENT_EVENTS = 400;
 const MAX_HISTORY = 40;
 
 export const emptyLabView = (): LabView => ({
-  lastSeq: 0, jobs: {}, agents: {}, projects: {}, papers: {}, rejected: [], recentEvents: [],
+  lastSeq: 0, jobs: {}, agents: {}, projects: {}, papers: {}, explore: {}, rejected: [], recentEvents: [],
 });
 
 const s = (v: unknown, fallback = ""): string => (typeof v === "string" ? v : fallback);
@@ -248,6 +258,30 @@ export function reduce(prev: LabView, e: LabEvent): LabView {
         version: n(p.version) ?? a.version,
         lineage: [{ seq: e.seq, kind: evolved ? ("evolved" as const) : ("devolved" as const), from: s(p.from_species), to: s(p.species), version: n(p.version) ?? a.version, note }, ...a.lineage],
       }));
+      break;
+    }
+    case "explore.planned": {
+      const pid = s(p.project_id);
+      const axes = (p.axes as { wd?: number[]; frac?: number[] }) ?? {};
+      view = { ...view, explore: { ...view.explore, [pid]: { projectId: pid, title: s(p.title), claim: Number(p.claim), wds: axes.wd ?? [], fracs: axes.frac ?? [], cells: [], lines: [] } } };
+      break;
+    }
+    case "explore.cell": {
+      const pid = s(p.project_id);
+      const ex = view.explore[pid];
+      if (ex) {
+        const cell: ExploreCell = {
+          wd: Number(p.wd), frac: Number(p.frac), jobId: (p.job_id as string) ?? null, status: (p.status as string) ?? null,
+          testAcc: n(p.test_acc), trainAcc: n(p.train_acc), claimHitStep: n(p.claim_hit_step), trainSaturatedStep: n(p.train_saturated_step),
+        };
+        view = { ...view, explore: { ...view.explore, [pid]: { ...ex, cells: [...ex.cells.filter((c) => !(c.wd === cell.wd && c.frac === cell.frac)), cell] } } };
+      }
+      break;
+    }
+    case "explore.analysis": {
+      const pid = s(p.project_id);
+      const ex = view.explore[pid];
+      if (ex) view = { ...view, explore: { ...view.explore, [pid]: { ...ex, lines: ((p.lines as string[]) ?? []).map(String) } } };
       break;
     }
     case "paper.ingested": {

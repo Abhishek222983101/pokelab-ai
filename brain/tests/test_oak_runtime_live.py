@@ -108,3 +108,55 @@ def test_a_typed_request_becomes_a_reproduced_paper_with_a_badge(tmp_path):
     job_done = [e for e in events if e["kind"] == "job.done" and e["payload"]["job_id"] == done["job_id"]]
     assert job_done and job_done[0]["payload"]["final"]["test_acc"] >= 0.95
     assert "project.badge_awarded" in kinds
+
+
+
+def _run_request_and_collect(text: str, until_kind: str, tmp_path, timeout: float = 240) -> list[dict]:
+    port = _free_port()
+    secret = "oak-whatif-secret"
+    env = {
+        **os.environ, "LABD_PORT": str(port), "LABD_DB_PATH": str(tmp_path / "lab.db"),
+        "LABD_BRAIN_SECRET": secret, "LABD_PAIRING_SECRET": "p", "WANDB_MODE": "disabled",
+        "LABD_WORKERS_PYTHON": WORKERS_PYTHON, "LABD_WORKERS_CWD": WORKERS_CWD, "LABD_POOL_SIZE": "1",
+    }
+    proc = subprocess.Popen([LABD_BIN], cwd=os.path.join(ROOT, "core"), env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    try:
+        _wait_for_port(port)
+
+        async def scenario():
+            brain = asyncio.create_task(run(f"ws://127.0.0.1:{port}/internal/brain", secret, with_oak=True))
+            events: list[dict] = []
+            async with websockets.connect(f"ws://127.0.0.1:{port}/api/ws") as ws:
+                await ws.send(json.dumps({"type": "hello", "since": 0}))
+                await asyncio.sleep(1.5)
+                await ws.send(json.dumps({"type": "command", "command": "request", "text": text}))
+                deadline = time.monotonic() + timeout
+                while time.monotonic() < deadline:
+                    msg = json.loads(await asyncio.wait_for(ws.recv(), timeout=timeout))
+                    if msg.get("type") == "event":
+                        events.append(msg["e"])
+                        if msg["e"]["kind"] == until_kind:
+                            break
+            brain.cancel()
+            return events
+
+        return asyncio.run(scenario())
+    finally:
+        proc.terminate()
+        proc.wait(timeout=10)
+
+
+@pytest.mark.skipif(not os.path.exists(LABD_BIN), reason="labd not built")
+@pytest.mark.skipif(not os.path.exists(WORKERS_PYTHON), reason="workers/.venv not found")
+def test_whatif_request_runs_a_real_grid_and_fills_the_map(tmp_path):
+    """'what if' -> REAL grokking jobs over a wd grid; every cell is an explore.cell event and the analysis is
+    computed from the measured steps (wd=1.0 groks, wd=0.0 never does within the step cap)."""
+    from pokelab_brain.oak import whatif
+    whatif.GRID_WD[:] = [0.0, 1.0]  # smaller grid keeps the test fast; the logic under test is identical
+    whatif.GRID_FRAC[:] = [0.5]
+    events = _run_request_and_collect("What if weight decay is zero?", "project.completed", tmp_path)
+    kinds = [e["kind"] for e in events]
+    assert "explore.planned" in kinds and "explore.analysis" in kinds
+    cells = {c["payload"]["wd"]: c["payload"] for c in events if c["kind"] == "explore.cell"}
+    assert cells[1.0]["claim_hit_step"] is not None, cells
+    assert cells[0.0]["claim_hit_step"] is None, cells

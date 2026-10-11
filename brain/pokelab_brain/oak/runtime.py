@@ -25,6 +25,7 @@ from pokelab_brain.oak.kits import KITS, paper_for
 from pokelab_brain.oak.lifecycle_loop import LifecycleLoop
 from pokelab_brain.oak.planner import load_template, validate_plan
 from pokelab_brain.oak.scheduler import run_plan
+from pokelab_brain.oak.whatif import WhatIfRun
 from pokelab_brain.state import StateProjection
 from pokelab_labml.selector.thompson import ThompsonSelector
 
@@ -185,9 +186,37 @@ class OakRuntime:
             n += 1
         await self.publish("project.rejected", {"request_seq": seq, "text": "reset team", "command": "reset", "reason": f"team reset: {n} agent(s) returned to their base species"})
 
+    async def handle_whatif(self, seq: int, text: str) -> None:
+        profile = KITS["grokking"]
+        project_id = f"p-whatif-{uuid.uuid4().hex[:6]}"
+        self._rebuild_from_log()
+        run = WhatIfRun(project_id=project_id, profile=profile, tool_ctx=ToolContext(bus=self.bus, state=self.state, project=project_id, timeout_s=150))
+        steps, step_configs = run.plan()
+        await self.publish("project.created", {
+            "project_id": project_id, "request_seq": seq, "text": text, "kind": "whatif", "paper": "grokking", "kit": profile.kit,
+            "title": "What if? Weight decay x data fraction (Grokking)", "claim": {"metric": profile.final_key, "value": profile.claim},
+            "plan": [{"step_id": s.id, "capability": s.cap, "title": s.title, "after": s.after} for s in steps],
+        }, project=project_id)
+        active = {aid: a.capabilities for aid, a in self.roster.items() if a.status == "active"}
+        result = await run_plan(
+            steps, active, self.selector, step_configs, emit=lambda k, p: self.publish(k, p, project=project_id),
+            project_id=project_id, executors=run.executors(), max_parallel=1,
+            narrate=run.narrate, dwell_s=float(os.environ.get("POKELAB_STEP_DWELL_S", "2.5")),
+        )
+        grokked = sum(1 for c in run.cells if c["claim_hit_step"] is not None)
+        await self.publish("project.completed", {
+            "project_id": project_id, "paper": "grokking", "kit": profile.kit, "verdict": "WHAT-IF COMPLETE",
+            "metric": "settings that grokked", "value": float(grokked), "claim": float(len(run.cells)), "job_id": None,
+            "report": str(run.workdir / "report.md"), "steps": {"completed": result.completed, "failed": result.failed, "escalated": result.escalated},
+        }, project=project_id)
+        await self.maybe_evolve()
+
     async def handle_request(self, seq: int, text: str) -> None:
         if any(w in text.lower() for w in ("reset team", "de-evolve", "devolve")):
             await self.reset_team(seq)
+            return
+        if any(w in text.lower() for w in ("what if", "what-if", "whatif", "explore", "safari")):
+            await self.handle_whatif(seq, text)
             return
         paper = paper_for(text)
         if paper is None and self.router is not None:

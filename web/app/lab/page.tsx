@@ -12,7 +12,7 @@ import { useReplay } from '@/lib/useReplay';
 import { hudStats, latestCompleted, latestPaper, liveAgents, liveFeed, liveQuests, liveRun, oakLine, type Telemetry } from '@/lib/liveView';
 import { labApiUrl } from '@/lib/useLabConnection';
 import { Hud, type Layout } from '../components/lab/Hud';
-import { ActivityPanel, ExperimentsPanel, Inspector, PaperPanel, QuestsPanel, ReproPanel, SafariPanel, TeamPanel, labelOf } from '../components/lab/panels';
+import { ActivityPanel, ExperimentsPanel, Inspector, ExploreMap, PaperPanel, QuestsPanel, ReproPanel, SafariPanel, TeamPanel, labelOf } from '../components/lab/panels';
 import { Mon } from '../components/Mon';
 import { OakDialog } from '../components/lab/OakDialog';
 import { cx } from '../components/ui';
@@ -77,7 +77,19 @@ function Desk() {
   const feed = useMemo(() => (live ? liveFeed(view) : rp.feed), [live, view, rp.feed]);
   const quests = useMemo(() => (live ? liveQuests(view) : undefined), [live, view]);
   const run = useMemo(() => (live ? liveRun(view) : undefined), [live, view]);
-  const paperView = useMemo(() => (live ? latestPaper(view) : null), [live, view]);
+  const exploreView = useMemo(() => {
+    if (!live) return null;
+    const ids = Object.keys(view.explore).sort((a, b) => (view.projects[b]?.createdSeq ?? 0) - (view.projects[a]?.createdSeq ?? 0));
+    return ids[0] ? view.explore[ids[0]] : null;
+  }, [live, view]);
+  const exploreRunning = !!exploreView && view.projects[exploreView.projectId]?.status === 'running';
+  const [paperPick, setPaperPick] = useState<string | null>(null);
+  const paperList = useMemo(() => Object.values(view.papers).sort((a, b) => (view.projects[b.projectId]?.createdSeq ?? 0) - (view.projects[a.projectId]?.createdSeq ?? 0)), [view.papers, view.projects]);
+  const paperView = useMemo(() => {
+    if (!live) return null;
+    const picked = paperPick ? view.papers[paperPick] : null;
+    return picked ? { paper: picked, project: view.projects[picked.projectId] ?? null } : latestPaper(view);
+  }, [live, view, paperPick]);
   const done = useMemo(() => (live ? latestCompleted(view) : undefined), [live, view]);
   const oakSay = live ? oakLine(view) : rp.oakSay;
   const { approved, approveSpawn, rejectSpawn } = rp;
@@ -196,10 +208,15 @@ function Desk() {
                   )}
                   {tab === 'team' && <TeamPanel agents={agents} selected={selected} onSelect={select} />}
                   {tab === 'quests' && <QuestsPanel quests={quests} />}
+                  {tab === 'paper' && live && paperList.length > 1 && (
+                    <div className="mb-2 flex flex-wrap items-center gap-1"><span className="font-pixel t-8 text-slate">PAPERS READ:</span>
+                      {paperList.slice(0, 8).map((pp) => <button key={pp.projectId} type="button" className={cx('chip cursor-pointer', (paperView?.paper.projectId === pp.projectId) ? 'chip-electric' : 'chip-plain')} onClick={() => setPaperPick(pp.projectId)}>{view.projects[pp.projectId]?.paper ?? pp.title.slice(0, 18)}</button>)}
+                    </div>
+                  )}
                   {tab === 'paper' && <PaperPanel paper={paperView?.paper ?? null} project={paperView?.project ?? null} />}
                   {tab === 'activity' && <ActivityPanel feed={feed} onFocus={focusWho} events={live ? view.recentEvents : []} />}
                   {tab === 'experiments' && <ExperimentsPanel run={run} jobs={live ? Object.values(view.jobs) : undefined} />}
-                  {tab === 'safari' && <SafariPanel live={live} />}
+                  {tab === 'safari' && (live ? <ExploreMap explore={exploreView} running={exploreRunning} onRun={() => sendAsk('What if weight decay is zero?')} /> : <SafariPanel live={false} />)}
                   {tab === 'repro' && <ReproPanel project={done} />}
                 </div>
               </div>
@@ -212,7 +229,7 @@ function Desk() {
                   <button type="submit" className="btn btn-sm">ASK OAK</button>
                 </div>
                 <div className="flex flex-wrap gap-1">
-                  {['Reproduce grokking', 'Reproduce knowledge distillation', 'Reproduce tiny NeRF', 'Reproduce the materials benchmark', 'Reproduce the tabular arena'].map((q) => (
+                  {['Reproduce grokking', 'What if weight decay is zero?', 'Reproduce knowledge distillation', 'Reproduce tiny NeRF', 'Reproduce the materials benchmark', 'Reproduce the tabular arena'].map((q) => (
                     <button key={q} type="button" className="chip chip-plain cursor-pointer" onClick={() => sendAsk(q)}>{q}</button>
                   ))}
                 </div>
