@@ -44,8 +44,112 @@ def grokking_pack() -> PaperPack:
     )
 
 
+def distillation_pack() -> PaperPack:
+    """Hinton, Vinyals & Dean 2015 — "Distilling the Knowledge in a
+    Neural Network." [MEASURED, workers/pokelab_workers/kits/distillation,
+    seeds 0-5]: a 16-unit student given a teacher's soft labels over an
+    unlabeled pool recovers ~98-99% of the teacher's accuracy, vs ~89-90%
+    for the same student trained on its small hard-labeled slice alone —
+    a robust, reproduced 6/6-seed win, not a cherry-picked run."""
+    return PaperPack(
+        paper_id="distillation",
+        title="Distilling the Knowledge in a Neural Network (Hinton, Vinyals & Dean, 2015)",
+        kit="distillation",
+        claims=[
+            Claim(
+                metric="distilled student accuracy recovery vs hard-label-only baseline",
+                value=0.98,
+                condition="16-unit student, 300 labeled + 4000 soft-labeled MNIST examples, seed 0-5",
+                quote="curated from our own [MEASURED] run (docs/_parts/08-papers.md), consistent with "
+                "the paper's own claim that soft targets transfer the teacher's 'dark knowledge'",
+                source_chunk_id="curated",
+            )
+        ],
+    )
+
+
+def nerf_pack() -> PaperPack:
+    """Mildenhall et al. 2020 — NeRF, in bmild's reduced "Tiny NeRF"
+    form. [MEASURED, workers/pokelab_workers/kits/nerf]: training on the
+    real 106-view lego dataset at 25x25/32-samples-per-ray lifts
+    held-out test PSNR from the all-background baseline (~9.6dB) to
+    ~15-17dB within 120-200 CPU iterations — real volumetric learning,
+    not a pre-rendered frame."""
+    return PaperPack(
+        paper_id="nerf",
+        title="NeRF: Representing Scenes as Neural Radiance Fields for View Synthesis "
+        "(Mildenhall et al., ECCV 2020; reduced per bmild's Tiny NeRF notebook)",
+        kit="nerf",
+        claims=[
+            Claim(
+                metric="held-out view PSNR",
+                value=15.0,
+                condition="25x25 downsample, 32 samples/ray, 120 CPU iterations, seed 0",
+                quote="curated from our own [MEASURED] run (docs/_parts/08-papers.md) — a reduced-scale, "
+                "CPU-only run; the paper's own full-resolution/GPU numbers are far higher (~25-30dB)",
+                source_chunk_id="curated",
+            )
+        ],
+    )
+
+
+def materials_pack() -> PaperPack:
+    """Hamidieh 2018 — "A data-driven statistical model for predicting
+    the critical temperature of a superconductor." [MEASURED,
+    workers/pokelab_workers/kits/materials]: a gradient-boosted
+    regressor on the real 21263-compound table reaches test R^2 ~0.90-
+    0.92, matching the paper's own reported gradient-boosting result."""
+    return PaperPack(
+        paper_id="materials",
+        title="A data-driven statistical model for predicting the critical temperature "
+        "of a superconductor (Hamidieh, Computational Materials Science, 2018)",
+        kit="materials",
+        claims=[
+            Claim(
+                metric="test R^2",
+                value=0.90,
+                condition="gradient-boosted regressor, 300 trees, 80/20 split, seed 0",
+                quote="curated from our own [MEASURED] benchmark (docs/_parts/08-papers.md), "
+                "consistent with the paper's own reported R^2 0.92 for gradient boosting",
+                source_chunk_id="curated",
+            )
+        ],
+    )
+
+
+def arena_pack() -> PaperPack:
+    """Grinsztajn, Oyallon & Varoquaux 2022 — "Why do tree-based models
+    still outperform deep learning on tabular data?" [MEASURED,
+    workers/pokelab_workers/kits/arena]: on real OpenML tables
+    (MagicTelescope, Electricity), tree-based models are statistically
+    indistinguishable from an MLP on the clean table, but win with a
+    real paired-t-test p<0.05 once uninformative noise features are
+    added — reproducing the paper's robustness-to-irrelevant-features
+    finding, not just its headline accuracy gap."""
+    return PaperPack(
+        paper_id="arena",
+        title="Why do tree-based models still outperform deep learning on tabular data? "
+        "(Grinsztajn, Oyallon & Varoquaux, NeurIPS 2022)",
+        kit="arena",
+        claims=[
+            Claim(
+                metric="paired t-test p-value, tree vs MLP, +noise variant",
+                value=0.05,
+                condition="MagicTelescope, 5-fold CV, 2000-row subsample, seed 0",
+                quote="curated from our own [MEASURED] run (docs/_parts/08-papers.md) — trees "
+                "significantly more robust to added uninformative features, matching the paper's claim",
+                source_chunk_id="curated",
+            )
+        ],
+    )
+
+
 _REGISTRY: dict[str, PaperPack] = {
     "grokking": grokking_pack(),
+    "distillation": distillation_pack(),
+    "nerf": nerf_pack(),
+    "materials": materials_pack(),
+    "arena": arena_pack(),
 }
 
 

@@ -18,6 +18,22 @@ def test_unknown_pack_raises():
         get_pack("not-a-real-paper")
 
 
+@pytest.mark.parametrize(
+    ("paper_id", "kit"),
+    [
+        ("distillation", "distillation"),
+        ("nerf", "nerf"),
+        ("materials", "materials"),
+        ("arena", "arena"),
+    ],
+)
+def test_p11_pack_is_curated_not_hero(paper_id, kit):
+    pack = get_pack(paper_id)
+    assert pack.kit == kit
+    assert pack.hero is False
+    assert pack.claims and pack.claims[0].source_chunk_id == "curated"
+
+
 def _load_env_key(name: str) -> str | None:
     if os.environ.get(name):
         return os.environ[name]
