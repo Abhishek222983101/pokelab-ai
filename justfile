@@ -78,3 +78,7 @@ docs:
 # Demo: restart labd + brain and print the links
 live:
     bash scripts/live_up.sh
+
+# Redeploy the Vercel desk against the current tunnel
+deploy:
+    bash scripts/deploy_vercel.sh

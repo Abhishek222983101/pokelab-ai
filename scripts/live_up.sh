@@ -14,6 +14,8 @@ LABD_HOST=127.0.0.1 nohup ./brain/.venv/bin/python -m pokelab_brain.main > /tmp/
 sleep 4
 curl -sf localhost:7700/api/health >/dev/null && echo "labd OK" || echo "labd FAILED: see /tmp/labd_live.log"
 grep -q "brain connected" /tmp/brain_live.log && echo "brain OK" || echo "brain FAILED: see /tmp/brain_live.log"
+pgrep -x cloudflared >/dev/null || { nohup cloudflared tunnel --no-autoupdate --protocol http2 --url http://localhost:7700 > /tmp/tunnel.log 2>&1 & sleep 8; }
 echo "LAB DESK : http://localhost:7700/lab/"
 echo "TITLE    : http://localhost:7700/"
 echo "PUBLIC   : $(grep -o 'https://[a-z0-9-]*\.trycloudflare\.com' /tmp/tunnel.log | tail -1)"
+echo "VERCEL   : https://pokelab-ai.vercel.app/lab/   (if the PUBLIC tunnel address above changed, run: bash scripts/deploy_vercel.sh)"
