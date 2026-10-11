@@ -68,6 +68,13 @@ class StateProjection:
     def _on_agent_rewarded(self, e: Event) -> None:
         self.rewards.append((e.payload["agent_id"], float(e.payload["reward"])))
 
+    def _on_agent_evolved(self, e: Event) -> None:
+        a = self.agents.get(e.payload["agent_id"])
+        if a is not None:
+            a["species"] = e.payload["species"]
+            a["version"] = e.payload["version"]
+            a["evolved_at_rewards"] = int(e.payload["evidence"]["n"]) + int(a.get("evolved_at_rewards", 0))
+
     def _on_project_requested(self, e: Event) -> None:
         self.requests[e.seq] = e.payload.get("text", "")
 

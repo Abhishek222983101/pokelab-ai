@@ -130,6 +130,10 @@ export function feedRow(e: LabEvent, view: LabView): DemoEvent | null {
       const why = Object.entries(b).map(([k, v]) => `${k} ${num(v, 2)}`).join(' · ');
       return { ...base, who, text: `${name} reward ${num(p.reward, 2)} → level ${Math.round((Number(p.posterior_mean) || 0.5) * 100)}`, why, tone: Number(p.reward) >= 0.7 ? 'good' : 'info' };
     }
+    case 'agent.evolved': {
+      const ev = (p.evidence as { n?: number; mean_reward?: number } | undefined) ?? {};
+      return { ...base, who: str(p.species), text: `${titleCase(str(p.from_species))} evolved into ${titleCase(str(p.species))} (v${num(p.version, 0)})!`, why: `${ev.n} rewarded tasks, mean reward ${num(ev.mean_reward, 2)} · rule: ${str(p.rule)}`, tone: 'good' };
+    }
     case 'agent.thought':
       return { ...base, who, text: str(p.text).slice(0, 140), tone: 'info' };
     case 'agent.refine_recommended':
@@ -222,6 +226,7 @@ export function oakLine(view: LabView): string {
         ? `Reproduced! ${str(p.metric)} ${num(p.value)} beats the paper's ${num(p.claim)}.`
         : `Verdict: ${str(p.verdict)}. ${str(p.metric)} ${num(p.value)} vs the paper's ${num(p.claim)}.`;
       case 'project.badge_awarded': { const g = gymForKit(str(p.kit)); return g ? `You earned the ${g.badge}!` : 'A badge!'; }
+      case 'agent.evolved': return `What's this? ${titleCase(str(p.from_species))} is evolving into ${titleCase(str(p.species))}!`;
       case 'project.rejected': return `Hmm. ${str(p.reason)}`;
     }
   }

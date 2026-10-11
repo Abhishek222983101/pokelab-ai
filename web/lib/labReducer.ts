@@ -200,6 +200,9 @@ export function reduce(prev: LabView, e: LabEvent): LabView {
       view = patchStep(view, p.project_id, stepId, (st) => ({ ...st, status: ok ? "done" : "failed" }));
       break;
     }
+    case "agent.evolved":
+      view = patchAgent(view, s(p.agent_id), (a) => ({ ...a, species: s(p.species, a.species), version: n(p.version) ?? a.version + 1 }));
+      break;
     case "agent.rewarded":
       view = patchAgent(view, s(p.agent_id), (a) => ({ ...a, lastReward: n(p.reward), posteriorMean: n(p.posterior_mean) ?? a.posteriorMean }));
       break;
