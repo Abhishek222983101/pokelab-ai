@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { DEMO_QUESTS, demoCurves, type DemoAgent, type DemoEvent, type DemoQuest } from '@/lib/demo';
 import type { LiveRun } from '@/lib/liveView';
-import type { JobViewState, PaperView, ProjectViewState } from '@/lib/labReducer';
+import type { ExploreView, JobViewState, PaperView, ProjectViewState } from '@/lib/labReducer';
 import type { LabEvent } from '@/lib/labSocket';
 import { gymForKit } from '@/lab/gyms';
 import { EEVEE_FORMS, ELEM_COLOR, ROLES, titleCase, trainerPortrait } from '@/lib/roster';
@@ -445,6 +445,62 @@ const GOOD: Array<[number, number, number]> = [[0.75, 0.3, 1], [0.55, 0.62, 0.8]
 const mu = (u: number, v: number) => GOOD.reduce((s, [cx0, cy0, a]) => s + a * Math.exp(-(((u - cx0) ** 2 + (v - cy0) ** 2) / 0.05)), 0.25);
 const RUNS: Array<[number, number]> = [[0.75, 0.3], [0.2, 0.2], [0.45, 0.45], [0.9, 0.7]];
 const sigma = (u: number, v: number) => Math.min(1, Math.min(...RUNS.map(([a, b]) => Math.hypot(u - a, v - b))) * 2.4);
+
+const accColor = (v: number) => `rgb(${Math.round(24 + v * 224)},${Math.round(48 + v * 168)},${Math.round(136 - v * 52)})`;
+
+/** The what-if map: each tile is one REAL grokking run (rows = weight decay, columns = training-data fraction). */
+export function ExploreMap({ explore, running, onRun }: { explore: ExploreView | null; running: boolean; onRun: () => void }) {
+  const wds = explore?.wds.length ? explore.wds : [0, 0.3, 1];
+  const fracs = explore?.fracs.length ? explore.fracs : [0.3, 0.5];
+  return (
+    <div>
+      <SectionTitle right={<span className="font-pixel t-8 text-slate">LIVE · REAL RUNS</span>}>SAFARI ZONE — THE WHAT-IF MAP</SectionTitle>
+      <Panel tone="well" className="!m-1">
+        <p className="m-0 text-[14px] leading-snug">
+          <b>What is this?</b> A researcher asks <i>"what if weight decay is different?"</i> Oak answers by running the Grokking experiment at several settings. <b>Each tile is one real training run on this GPU.</b> Rows = weight decay, columns = how much of the data the model trains on. Tile colour = the test accuracy it reached; <b>✓ GROKKED</b> means it passed the paper's claim ({explore?.claim ?? 0.95}); fog = not run yet.
+        </p>
+        <div className="mt-2"><Button small onClick={onRun} disabled={running}>{running ? 'RUNNING…' : explore ? '▶ RUN IT AGAIN' : '▶ RUN THE WHAT-IF'}</Button></div>
+      </Panel>
+      <div className="m-1 mt-2 overflow-x-auto">
+        <table className="w-full border-separate border-spacing-1 text-center">
+          <thead>
+            <tr><th className="font-pixel t-8 p-1 text-slate">wd ↓ / data →</th>{fracs.map((f) => <th key={f} className="font-pixel t-8 p-1 text-navy">{Math.round(f * 100)}% of data</th>)}</tr>
+          </thead>
+          <tbody>
+            {wds.map((wd) => (
+              <tr key={wd}>
+                <th className="font-pixel t-8 p-1 text-navy">wd {wd}</th>
+                {fracs.map((f) => {
+                  const c = explore?.cells.find((x) => x.wd === wd && x.frac === f);
+                  const bg = c && c.testAcc !== null ? accColor(Math.max(0, Math.min(1, c.testAcc))) : '#e6e4b0';
+                  return (
+                    <td key={f} className="p-2 align-middle" style={{ background: bg, boxShadow: c?.claimHitStep != null ? '0 0 0 3px #f8d858 inset' : undefined, minWidth: 120, height: 88 }}>
+                      {c ? (
+                        <>
+                          <p className="m-0 text-[20px] font-bold tabular-nums" style={{ color: c.testAcc !== null && c.testAcc > 0.55 ? '#181818' : '#f8f8d0' }}>{c.testAcc !== null ? c.testAcc.toFixed(2) : '—'}</p>
+                          <p className="m-0 text-[12px] font-bold" style={{ color: c.testAcc !== null && c.testAcc > 0.55 ? '#181818' : '#f8f8d0' }}>{c.claimHitStep != null ? `✓ GROKKED @ step ${c.claimHitStep}` : 'NEVER GROKKED'}</p>
+                          <p className="m-0 text-[11px] opacity-80" style={{ color: c.testAcc !== null && c.testAcc > 0.55 ? '#181818' : '#f8f8d0' }}>{c.jobId}</p>
+                        </>
+                      ) : <p className="m-0 text-[13px] text-slate">{explore && running ? 'waiting for its run…' : 'fog (not run)'}</p>}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {explore && explore.lines.length > 0 && (
+        <>
+          <SectionTitle>WHY THE TILES DIFFER (computed from the measured curves)</SectionTitle>
+          <ul className="m-1 grid list-none gap-1 p-0 text-[14px] leading-snug">
+            {explore.lines.map((l, i) => <li key={i} className="bg-cream-deep p-2">{l}</li>)}
+          </ul>
+        </>
+      )}
+    </div>
+  );
+}
 
 export function SafariPanel({ live = false }: { live?: boolean }) {
   const ref = useRef<HTMLCanvasElement>(null);

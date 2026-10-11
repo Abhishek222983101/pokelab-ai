@@ -103,4 +103,16 @@ describe("labReducer", () => {
     expect(v.papers.pX.chunks[0].text).toBe("weight decay");
     expect(v.papers.pX.analysis).toMatchObject({ delaySteps: 1500, claimHitStep: 1900 });
   });
+
+  it("fills the what-if map tile by tile from explore events", () => {
+    const v = fold([
+      ev("explore.planned", { project_id: "pW", title: "T", claim: 0.95, axes: { wd: [0, 1], frac: [0.5] }, cells: [] }),
+      ev("explore.cell", { project_id: "pW", wd: 1, frac: 0.5, job_id: "job-1", status: "ok", test_acc: 0.99, train_acc: 1, claim_hit_step: 1900, train_saturated_step: 100 }),
+      ev("explore.cell", { project_id: "pW", wd: 0, frac: 0.5, job_id: "job-2", status: "ok", test_acc: 0.4, train_acc: 1, claim_hit_step: null, train_saturated_step: 100 }),
+      ev("explore.analysis", { project_id: "pW", lines: ["1 of 2 settings reached the claim."] }),
+    ]);
+    expect(v.explore.pW.cells).toHaveLength(2);
+    expect(v.explore.pW.cells.find((c) => c.wd === 0)?.claimHitStep).toBeNull();
+    expect(v.explore.pW.lines[0]).toMatch(/1 of 2/);
+  });
 });

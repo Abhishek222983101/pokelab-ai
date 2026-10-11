@@ -103,7 +103,12 @@ struct GpuJson {
     temp_c: Option<f64>,
 }
 
-async fn telemetry() -> Json<Telemetry> {
+async fn telemetry() -> impl axum::response::IntoResponse {
+    // read-only GPU numbers: allow the Vercel-hosted desk to fetch them cross-origin
+    ([(axum::http::header::ACCESS_CONTROL_ALLOW_ORIGIN, "*")], telemetry_json().await)
+}
+
+async fn telemetry_json() -> Json<Telemetry> {
     let gpu = tokio::task::spawn_blocking(lab_telemetry::sample_gpu)
         .await
         .ok()
