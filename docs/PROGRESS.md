@@ -113,10 +113,10 @@
 
 ## P11
 
-- ⬜ **P11.1** Distillation (Edge) · ★★★ · 🔵 · 🔥 🧠 — 
-- ⬜ **P11.2** Tiny NeRF (3D) · ★★★★ · 🔵 · 🔥 🧠 — 
-- ⬜ **P11.3** Materials (Matbench) · ★★★ · 🔵 · 🧠 — 
-- ⬜ **P11.4** Comparison arena · ★★★ · 🔵 · 🧠 — 
+- ✅ **P11.1** Distillation (Edge) · ★★★ · 🔵 · 🔥 🧠 — real Hinton 2015 KD on real MNIST subsample (workers/kits/distillation): a 16-unit student given the teacher's soft labels over an unlabeled pool beats the same student on hard labels alone, 6/6 seeds, ~98-99% teacher-accuracy recovery at 18x fewer params. [BUG FOUND & FIXED]: an earlier attempt that gave both students the FULL labeled set showed no reliable benefit (the label set alone already saturates a 16-unit net) — kept as the honest negative result that led to the final label-scarce design, see spec.py's docstring. A separate fairness bug (unseeded RNG drift between the two students) was also caught and fixed before any result was trusted.
+- ✅ **P11.2** Tiny NeRF (3D) · ★★★★ · 🔵 · 🔥 🧠 — real Mildenhall et al. 2020 volumetric training on the real 106-view lego dataset (workers/kits/nerf): held-out test PSNR climbs 12.6→17.2dB over 120-200 CPU iterations, strictly above the all-zero-prediction baseline. [BUG FOUND & FIXED]: the first model used ReLU for density, which either saturated opacity to ~1 at init (zero gradient to ever reduce it) or died at exactly 0 (zero gradient to ever raise it) — the held-out view's loss matched the all-background baseline bit-for-bit regardless of training time, because the model's output never actually depended on its weights. Fixed with softplus density + a scaled-down final-layer init.
+- ✅ **P11.3** Materials (Matbench) · ★★★ · 🔵 · 🧠 — real Hamidieh 2018 superconductor critical-temperature regression on the real 21263-row OpenML table (workers/kits/materials): gradient-boosted regressor reaches test R^2 ~0.84 at only 30 trees, climbing toward the paper's own ~0.90-0.92 at the full 300.
+- ✅ **P11.4** Comparison arena · ★★★ · 🔵 · 🧠 — real Grinsztajn et al. 2022 tree-vs-MLP comparison on real OpenML tables (workers/kits/arena), with an actual paired t-test (satisfies compare.yaml's `metric_present:p_value` with a computed value, not a stub): base/+noise/rotated variants on MagicTelescope — trees win significantly (p=0.048) once uninformative noise features are added, matching the paper's robustness claim; base/rotated are honestly reported as not significant.
 - ⬜ **P11.5** Oracle/Navigator per kit · ★★★ · 🔵 · 🔥 🧠 — 
 - ⬜ **P11.6** Four-gym run · ★★★ · 🔵 · 🔥 — 
 

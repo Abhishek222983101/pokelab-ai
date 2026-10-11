@@ -22,6 +22,10 @@ from pokelab_workers.kits import base
 # importing the kit modules registers them (base.KIT_REGISTRY)
 from pokelab_workers.kits.smoke import spec as _smoke_spec  # noqa: F401
 from pokelab_workers.kits.grokking import spec as _grokking_spec  # noqa: F401
+from pokelab_workers.kits.materials import spec as _materials_spec  # noqa: F401
+from pokelab_workers.kits.distillation import spec as _distillation_spec  # noqa: F401
+from pokelab_workers.kits.nerf import spec as _nerf_spec  # noqa: F401
+from pokelab_workers.kits.arena import spec as _arena_spec  # noqa: F401
 
 
 def _try_import_torch():
