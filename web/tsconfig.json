@@ -25,6 +25,12 @@
     "paths": {
       "@/*": [
         "./*"
+      ],
+      "game-core": [
+        "./game-core/index.ts"
+      ],
+      "game-core/*": [
+        "./game-core/*"
       ]
     }
   },
@@ -36,6 +42,8 @@
     ".next/dev/types/**/*.ts"
   ],
   "exclude": [
-    "node_modules"
+    "node_modules",
+    "game/_ref",
+    "out"
   ]
 }

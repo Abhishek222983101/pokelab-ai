@@ -55,11 +55,17 @@ export class LabSocket {
     return () => this.commandResultHandlers.delete(handler);
   }
 
-  /** §5.4.4's infra commands (currently just kill_job — see ws.rs). */
-  sendCommand(command: string, jobId?: string): void {
-    if (this.ws?.readyState === WebSocket.OPEN) {
-      this.ws.send(JSON.stringify({ type: "command", command, job_id: jobId }));
-    }
+  /** §5.4.4 commands (ws.rs): kill_job {job_id}, request {text}, feedback {agent_id, value}. Returns
+   * false when the socket is not open (nothing was sent — the caller must say so, not pretend). */
+  sendCommand(command: string, jobId?: string, extra: { text?: string; agent_id?: string; value?: number } = {}): boolean {
+    if (this.ws?.readyState !== WebSocket.OPEN) return false;
+    this.ws.send(JSON.stringify({ type: "command", command, job_id: jobId, ...extra }));
+    return true;
+  }
+
+  /** A researcher's plain-words request; labd records it as project.requested and Oak picks it up. */
+  sendRequest(text: string): boolean {
+    return this.sendCommand("request", undefined, { text });
   }
 
   connect(sinceSeq = 0): void {

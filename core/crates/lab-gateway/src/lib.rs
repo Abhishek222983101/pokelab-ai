@@ -54,6 +54,7 @@ pub fn router_with_web(
 
     let mut router = Router::new()
         .route("/api/health", get(health))
+        .route("/api/telemetry", get(telemetry))
         .route("/api/events/since", get(events_since))
         .route("/api/pair/issue", post(pair_issue))
         .route("/api/pair/claim", post(pair_claim))
@@ -83,6 +84,39 @@ async fn health(State(state): State<AppState>) -> Json<Health> {
         status: "ok",
         latest_seq,
     })
+}
+
+/// Live GPU numbers for the HUD (§5.7). `gpu: null` means nvidia-smi gave nothing (no GPU / not
+/// installed): the UI shows "—", never a made-up figure.
+#[derive(Serialize)]
+struct Telemetry {
+    gpu: Option<GpuJson>,
+}
+
+#[derive(Serialize)]
+struct GpuJson {
+    name: Option<String>,
+    util_pct: Option<f64>,
+    mem_used_mib: Option<f64>,
+    mem_total_mib: Option<f64>,
+    power_w: Option<f64>,
+    temp_c: Option<f64>,
+}
+
+async fn telemetry() -> Json<Telemetry> {
+    let gpu = tokio::task::spawn_blocking(lab_telemetry::sample_gpu)
+        .await
+        .ok()
+        .flatten()
+        .map(|g| GpuJson {
+            name: g.name,
+            util_pct: g.util_pct,
+            mem_used_mib: g.mem_used_mib,
+            mem_total_mib: g.mem_total_mib,
+            power_w: g.power_w,
+            temp_c: g.temp_c,
+        });
+    Json(Telemetry { gpu })
 }
 
 #[derive(Deserialize)]
