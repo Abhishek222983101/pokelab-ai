@@ -7,6 +7,7 @@ pkill -x labd 2>/dev/null; pkill -f "[p]okelab_brain.main" 2>/dev/null; sleep 1
 set -a; source .env; set +a
 export LABD_WORKERS_PYTHON=$PWD/workers/.venv/bin/python LABD_WORKERS_CWD=$PWD/workers LABD_WORKER_DEVICE=cuda \
   LABD_POOL_SIZE=2 LABD_DB_PATH=$PWD/var/lab.db LABD_PORT=7700 LABD_WEB_DIR=$PWD/web/out
+export POKELAB_EVOLVE_MIN_REWARDS=${POKELAB_EVOLVE_MIN_REWARDS:-3}
 nohup ./core/target/debug/labd up > /tmp/labd_live.log 2>&1 &
 for i in $(seq 1 20); do curl -sf localhost:7700/api/health >/dev/null && break; sleep 1; done
 LABD_HOST=127.0.0.1 nohup ./brain/.venv/bin/python -m pokelab_brain.main > /tmp/brain_live.log 2>&1 &

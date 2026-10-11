@@ -72,14 +72,18 @@ class ProjectRun:
             source = "curated-pack"
         path = self.workdir / "chunks.json"
         path.write_text(json.dumps({"source": source, "chunks": chunks}, indent=1))
-        return {"status": "ok", "artifacts": {"chunks": str(path)}, "final": {"chunks": len(chunks), "source": source}}
+        return {"status": "ok", "artifacts": {"chunks": str(path)}, "final": {"chunks": len(chunks), "source": source},
+                "events": [("paper.ingested", {"title": pack.title, "source": source, "n_chunks": len(chunks),
+                                               "chunks": [{"id": c["id"], "text": c["text"][:520]} for c in chunks[:14]]})]}
 
     async def spec_extract(self, step: PlanStep, cfg: dict[str, Any]) -> dict[str, Any]:
         pack = get_pack(self.profile.paper)
         spec = {"paper_id": pack.paper_id, "title": pack.title, "kit": pack.kit,
                 "claims": [{"metric": c.metric, "value": c.value, "condition": c.condition, "source": c.source_chunk_id} for c in pack.claims]}
         (self.workdir / "pack.json").write_text(json.dumps(spec, indent=1))
-        return {"status": "ok", "artifacts": {"pack": spec}, "final": {"claims": len(spec["claims"])}}
+        return {"status": "ok", "artifacts": {"pack": spec}, "final": {"claims": len(spec["claims"])},
+                "events": [("claim.extracted", {"title": pack.title, "target": {"metric": self.profile.final_key, "value": self.profile.claim},
+                                                "claims": spec["claims"]})]}
 
     async def implement(self, step: PlanStep, cfg: dict[str, Any]) -> dict[str, Any]:
         return {"status": "ok", "kit": self.profile.kit, "known_kits": WORKER_KITS,
@@ -101,7 +105,22 @@ class ProjectRun:
 
     async def analyze(self, step: PlanStep, cfg: dict[str, Any]) -> dict[str, Any]:
         final = (self.full_result or {}).get("final") or {}
-        return {"status": "ok" if final else "error", "final": final}
+        events = []
+        job_id = (self.full_result or {}).get("job_id")
+        job = self.tool_ctx.state.jobs.get(job_id) if job_id else None
+        if job is not None:
+            key = self.profile.live_key
+            test = [(st, v) for st, v in job.metrics.get(key, []) if v is not None]
+            train = [(st, v) for st, v in job.metrics.get(key.replace("test_", "train_"), []) if v is not None]
+            hit = next((st for st, v in test if v >= self.profile.claim), None)
+            sat = next((st for st, v in train if v >= 0.99), None)
+            events.append(("analysis.computed", {
+                "job_id": job_id, "metric": key, "claim": self.profile.claim, "points": len(test),
+                "claim_hit_step": hit, "train_saturated_step": sat,
+                "delay_steps": (hit - sat) if (hit is not None and sat is not None) else None,
+                "final": {k: v for k, v in final.items() if isinstance(v, (int, float, str))},
+            }))
+        return {"status": "ok" if final else "error", "final": final, "events": events}
 
     async def repro_compare(self, step: PlanStep, cfg: dict[str, Any]) -> dict[str, Any]:
         self.verdict = verdict(self.profile, self.value)

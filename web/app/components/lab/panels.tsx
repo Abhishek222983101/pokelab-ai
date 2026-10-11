@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { DEMO_QUESTS, demoCurves, type DemoAgent, type DemoEvent, type DemoQuest } from '@/lib/demo';
 import type { LiveRun } from '@/lib/liveView';
-import type { JobViewState, ProjectViewState } from '@/lib/labReducer';
+import type { JobViewState, PaperView, ProjectViewState } from '@/lib/labReducer';
+import type { LabEvent } from '@/lib/labSocket';
 import { gymForKit } from '@/lab/gyms';
 import { EEVEE_FORMS, ELEM_COLOR, ROLES, titleCase, trainerPortrait } from '@/lib/roster';
 import { Mon } from '../Mon';
@@ -102,6 +103,35 @@ export function Inspector({ agent, onClose, onApprove, onReject, approved, onFee
           </div>
         ))}
       </div>
+      {agent.history && (
+        <div className="mt-3">
+          <p className="font-pixel t-8 mb-1 text-yellow">WHAT IT CARRIES INTO THE NEXT PROJECT</p>
+          <p className="m-0 mb-2 text-[13px] leading-snug text-cream/80">
+            Oak picks this agent by sampling its reward posterior (mean {agent.mu.toFixed(2)} ± {agent.sigma.toFixed(2)} from {agent.tasks} rewarded tasks). Every task below was logged with its reward, so the next selection starts from this record.
+          </p>
+          {agent.lineage && agent.lineage.length > 0 && (
+            <ul className="m-0 mb-2 list-none p-0 text-[13px]">
+              {agent.lineage.map((l) => (
+                <li key={l.seq} className="text-cream/90"><b className="font-pixel t-8 text-yellow">{l.kind === 'evolved' ? 'EVOLVED' : 'DE-EVOLVED'} #{l.seq}</b> {titleCase(l.from)} → {titleCase(l.to)} (v{l.version}) · {l.note}</li>
+              ))}
+            </ul>
+          )}
+          <p className="font-pixel t-8 mb-1 text-yellow">WORK LOG ({agent.history.length})</p>
+          {agent.history.length === 0 && <p className="m-0 text-[13px] text-cream/70">No tasks logged this session.</p>}
+          <ol className="m-0 grid max-h-72 list-none gap-2 overflow-auto p-0">
+            {agent.history.slice(0, 12).map((h) => (
+              <li key={`${h.seq}`} className="bg-navy-deep p-2 text-[13px] leading-snug">
+                <span className="flex flex-wrap items-center gap-x-2">
+                  <span className={cx('chip', h.status === 'done' ? 'chip-good' : h.status === 'failed' ? 'chip-bad' : 'chip-water')}>{h.status}</span>
+                  <span className="font-pixel t-8 text-cream/70">#{h.seq} · {h.capability}{h.jobId ? ` · ${h.jobId}` : ''}{h.reward !== null ? ` · reward ${h.reward.toFixed(2)}` : ''}</span>
+                </span>
+                <span className="block text-cream">{h.title}</span>
+                {h.thoughts.map((t, i) => <span key={i} className="block text-cream/80">› {t}</span>)}
+              </li>
+            ))}
+          </ol>
+        </div>
+      )}
       {agent.evolvesTo && <p className="mt-1 text-[13px] text-cream/80">Evolves to {titleCase(agent.evolvesTo)} when its shadow run beats v{agent.version} by a margin.</p>}
 
       {onFeedback && (
@@ -124,31 +154,63 @@ export function Inspector({ agent, onClose, onApprove, onReject, approved, onFee
 
 /* ------------------------------------------------------------------ Activity */
 
-export function ActivityPanel({ feed, onFocus }: { feed: DemoEvent[]; onFocus: (who: string) => void }) {
+function relatedEvents(raw: LabEvent, events: LabEvent[]): LabEvent[] {
+  const p = raw.payload;
+  const job = typeof p.job_id === 'string' ? p.job_id : null;
+  const step = typeof p.step_id === 'string' ? p.step_id : null;
+  const proj = typeof p.project_id === 'string' ? p.project_id : raw.project;
+  return events.filter((e) => e.seq !== raw.seq && (
+    (job && e.payload.job_id === job) || (step && proj && e.payload.step_id === step && (e.payload.project_id === proj || e.project === proj))
+  )).sort((x, y) => x.seq - y.seq);
+}
+
+export function ActivityPanel({ feed, onFocus, events = [] }: { feed: DemoEvent[]; onFocus: (who: string) => void; events?: LabEvent[] }) {
+  const [open, setOpen] = useState<number | null>(null);
   return (
     <div>
-      <SectionTitle right={<span className="font-pixel t-8 text-slate">EVERY ROW CITES ITS EVENT</span>}>ACTIVITY</SectionTitle>
+      <SectionTitle right={<span className="font-pixel t-8 text-slate">CLICK A ROW FOR ITS PROOF</span>}>ACTIVITY</SectionTitle>
       <ol className="m-0 grid list-none gap-2 p-0">
-        {feed.map((e) => (
-          <li key={e.seq} className="feed-row">
-            <button type="button" className="flex w-full items-start gap-2 bg-transparent p-0 text-left" onClick={() => onFocus(e.who)}>
-              {e.who === 'oak' || e.who === 'ash' ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={trainerPortrait(e.who)} alt="" width={36} height={36} style={{ imageRendering: 'pixelated', width: 36, height: 36, objectFit: 'contain' }} />
-              ) : (
-                <Mon species={e.who} size={36} />
-              )}
-              <span className="min-w-0 flex-1">
-                <span className="flex flex-wrap items-center gap-x-2">
-                  <span className={cx('chip', toneChip[e.tone ?? 'info'])}>{e.kind}</span>
-                  <span className="font-pixel t-8 text-slate tabular-nums">#{e.seq} · {e.t}</span>
+        {feed.map((e) => {
+          const isOpen = open === e.seq && !!e.raw;
+          const rel = isOpen && e.raw ? relatedEvents(e.raw, events) : [];
+          const metricPts = rel.filter((r) => r.kind === 'job.metric').length;
+          return (
+            <li key={e.seq} className="feed-row">
+              <button type="button" className="flex w-full items-start gap-2 bg-transparent p-0 text-left" onClick={() => setOpen(isOpen ? null : e.seq)} aria-expanded={isOpen}>
+                {e.who === 'oak' || e.who === 'ash' ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={trainerPortrait(e.who)} alt="" width={36} height={36} style={{ imageRendering: 'pixelated', width: 36, height: 36, objectFit: 'contain' }} />
+                ) : (
+                  <Mon species={e.who} size={36} />
+                )}
+                <span className="min-w-0 flex-1">
+                  <span className="flex flex-wrap items-center gap-x-2">
+                    <span className={cx('chip', toneChip[e.tone ?? 'info'])}>{e.kind}</span>
+                    <span className="font-pixel t-8 text-slate tabular-nums">#{e.seq} · {e.t}</span>
+                    {e.raw && <span className="font-pixel t-8 text-navy">{isOpen ? '▲ HIDE PROOF' : '▼ PROOF'}</span>}
+                  </span>
+                  <span className="mt-0.5 block text-[15px] leading-snug text-ink">{e.text}</span>
+                  {e.why && <span className="block text-[13px] leading-snug text-slate"><b className="font-pixel t-8 text-navy">WHY </b>{e.why}</span>}
                 </span>
-                <span className="mt-0.5 block text-[15px] leading-snug text-ink">{e.text}</span>
-                {e.why && <span className="block text-[13px] leading-snug text-slate"><b className="font-pixel t-8 text-navy">WHY </b>{e.why}</span>}
-              </span>
-            </button>
-          </li>
-        ))}
+              </button>
+              {isOpen && e.raw && (
+                <div className="mt-2 bg-navy-deep p-2 text-cream">
+                  <p className="font-pixel t-8 m-0 mb-1 text-yellow">THE LOGGED EVENT (labd event store, var/lab.db)</p>
+                  <pre className="m-0 max-h-56 overflow-auto whitespace-pre-wrap break-words text-[12px] leading-snug">{JSON.stringify({ seq: e.raw.seq, ts: e.raw.ts, kind: e.raw.kind, actor: e.raw.actor, project: e.raw.project, payload: e.raw.payload }, null, 2).slice(0, 3000)}</pre>
+                  {(rel.length > 0) && (
+                    <div className="mt-2">
+                      <p className="font-pixel t-8 m-0 mb-1 text-yellow">RELATED EVENTS ({rel.length}{metricPts ? `, incl. ${metricPts} job.metric points` : ''})</p>
+                      <div className="flex flex-wrap gap-1">
+                        {rel.filter((r) => r.kind !== 'job.metric').slice(0, 14).map((r) => <span key={r.seq} className="chip chip-plain">#{r.seq} {r.kind}</span>)}
+                      </div>
+                    </div>
+                  )}
+                  <div className="mt-2 flex gap-2"><Button small variant="secondary" onClick={() => onFocus(e.who)}>Open agent</Button></div>
+                </div>
+              )}
+            </li>
+          );
+        })}
       </ol>
     </div>
   );
@@ -225,6 +287,11 @@ function LiveExperiments({ run, jobs }: { run: LiveRun | null; jobs: JobViewStat
   const target = series[0]?.points ?? [];
   const last = target[target.length - 1];
   const crossed = claim !== null ? target.find((p) => p[1] >= claim) : undefined;
+  const trainPts = series[1]?.points ?? [];
+  const sat = trainPts.find((p) => p[1] >= 0.99);
+  const cfgOf = (j: JobViewState) => (j.config ? Object.entries(j.config).filter(([k]) => ['model', 'p', 'frac', 'wd', 'lr', 'steps', 'n_estimators', 'device'].includes(k)).map(([k, v]) => `${k}=${String(v)}`).join(' · ') : '—');
+  const isSmoke = (j: JobViewState) => j.kit === 'smoke' || (typeof j.config?.steps === 'number' && (j.config.steps as number) <= 200) || (typeof j.config?.n_estimators === 'number' && (j.config.n_estimators as number) <= 10);
+  const lastPoint = (j: JobViewState, key: string | undefined) => { const pts = key ? j.metrics[key] : undefined; return pts && pts.length ? pts[pts.length - 1][1] : null; };
   const g = gymForKit(job.kit);
   const finalV = job.final && typeof job.final[metricKey] === 'number' ? (job.final[metricKey] as number) : null;
   const sorted = [...jobs].sort((a, b) => (Number(b.jobId.replace(/\D/g, '')) || 0) - (Number(a.jobId.replace(/\D/g, '')) || 0)).slice(0, 8);
@@ -244,6 +311,12 @@ function LiveExperiments({ run, jobs }: { run: LiveRun | null; jobs: JobViewStat
               <text x={Wd - R - 4} y={y(claim) - 5} textAnchor="end" fontFamily="Press Start 2P" fontSize="7" fill="#181818">PAPER CLAIM {claim}</text>
             </g>
           )}
+          {sat && crossed && crossed[0] > sat[0] && (
+            <g>
+              <rect x={x(sat[0])} y={T} width={Math.max(2, x(crossed[0]) - x(sat[0]))} height={Ht - T - B} fill="#f85888" fillOpacity="0.14" />
+              <text x={(x(sat[0]) + x(crossed[0])) / 2} y={Ht - B - 6} textAnchor="middle" fontFamily="Press Start 2P" fontSize="6" fill="#a02040">MEMORISED, NOT YET GENERALISED</text>
+            </g>
+          )}
           {series.map((s, i) => <path key={s.key} d={path(s.points)} fill="none" stroke={colors[i % 2]} strokeWidth="3" />)}
           {last && <rect x={x(last[0]) - 4} y={y(last[1]) - 4} width="8" height="8" fill="#f8d858" stroke="#181818" strokeWidth="2" />}
           {crossed && (
@@ -254,24 +327,35 @@ function LiveExperiments({ run, jobs }: { run: LiveRun | null; jobs: JobViewStat
           )}
           <text x={L} y={Ht - 8} fontFamily="Press Start 2P" fontSize="7" fill="#484878">STEP → {maxStep}</text>
         </svg>
+        <p className="m-0 px-1 pb-1 text-[13px] leading-snug text-ink">
+          <b>How to read it:</b> {g ? g.claimText : 'each line is a metric streamed from the running job.'} The yellow line is the paper's claim; the run succeeds when the red line crosses it.
+        </p>
         <div className="flex flex-wrap items-center gap-3 px-1 pb-1 text-[13px]">
-          {series.map((s, i) => <Legend key={s.key} c={colors[i % 2]} t={`${s.key} (${s.points.length} pts)`} />)}
+          {series.map((s, i) => <Legend key={s.key} c={colors[i % 2]} t={`${s.key} (${s.points.length} measured points)`} />)}
           {claim !== null && <Legend c="#f8d858" t={`${g ? `${g.leader}'s` : 'paper'} claim`} />}
         </div>
       </Panel>
       <div className="mt-3 overflow-x-auto">
         <table className="w-full border-collapse text-[14px]">
-          <thead><tr className="font-pixel t-8 text-left text-slate"><th className="p-1">RUN</th><th className="p-1">KIT</th><th className="p-1">STATUS</th><th className="p-1 text-right">RESULT</th><th className="p-1 text-right">WALL</th></tr></thead>
+          <thead><tr className="font-pixel t-8 text-left text-slate"><th className="p-1">RUN</th><th className="p-1">WHAT</th><th className="p-1">STATUS</th><th className="p-1 text-right">RESULT</th><th className="p-1 text-right">WALL</th><th className="p-1">CHECK</th></tr></thead>
           <tbody>
             {sorted.map((j) => {
               const gg = gymForKit(j.kit);
               const v = gg && j.final && typeof j.final[gg.metricKey] === 'number' ? (j.final[gg.metricKey] as number).toFixed(3) : '—';
               const wall = j.final && typeof j.final.wall_s === 'number' ? `${(j.final.wall_s as number).toFixed(1)} s` : '—';
               return (
-                <tr key={j.jobId} className="border-t-2 border-cream-deep">
-                  <td className="p-1 font-pixel t-8">{j.jobId}</td><td className="p-1">{j.kit ?? '—'}</td>
+                <tr key={j.jobId} className="border-t-2 border-cream-deep align-top">
+                  <td className="p-1 font-pixel t-8">{j.jobId}</td>
+                  <td className="p-1"><span className={cx('chip', isSmoke(j) ? 'chip-flat' : 'chip-electric')}>{j.kit === 'smoke' ? 'env check' : isSmoke(j) ? 'smoke test' : 'full run'}</span> {j.kit}<span className="block text-[11px] text-slate">{cfgOf(j)}</span></td>
                   <td className="p-1"><span className={cx('chip', j.status === 'ok' ? 'chip-good' : j.status === 'running' ? 'chip-water' : 'chip-bad')}>{j.status === 'stopped' ? '↩ got away' : j.status}</span></td>
                   <td className="p-1 text-right tabular-nums">{gg ? `${gg.metricKey} ${v}` : '—'}</td><td className="p-1 text-right tabular-nums">{wall}</td>
+                  <td className="p-1 text-[12px]">{(() => {
+                    const lp = gg ? lastPoint(j, gg.metricKey) : null;
+                    const fv = gg && j.final && typeof j.final[gg.metricKey] === 'number' ? (j.final[gg.metricKey] as number) : null;
+                    const n = gg ? (j.metrics[gg.metricKey]?.length ?? 0) : 0;
+                    if (fv !== null && lp !== null) return Math.abs(fv - lp) < 1e-6 ? <span className="text-[#1f8f2a]">✓ final = last streamed point ({n} pts)</span> : <span className="text-[#a02040]">✗ final ≠ stream</span>;
+                    return <span className="text-slate">{n} pts</span>;
+                  })()}</td>
                 </tr>
               );
             })}
@@ -481,3 +565,78 @@ function ReplayRepro() {
   );
 }
 
+
+
+/* ------------------------------------------------------------------ Paper (what the Reader read, what Oak extracted, what the run showed) */
+
+const HILITE = /(grokking|weight decay|test accuracy|generali[sz]ation|train(?:ing)? accuracy|R\^?2|PSNR|distill\w*|teacher|student|soft label\w*)/gi;
+
+/** PDF text extraction leaves artefacts (small-caps splits, hyphenated line breaks, mid-sentence cuts): tidy for reading. */
+export function cleanPaperText(raw: string): string {
+  let t = raw.replace(/\s+/g, ' ').trim();
+  t = t.replace(/\b([A-Z]) ([A-Z]{3,})/g, '$1$2');            // "G ENERALIZATION" -> "GENERALIZATION"
+  t = t.replace(/([A-Z]{2,}) ?- ?([A-Z]{2,})/g, '$1$2');       // "OVERFIT - TING" -> "OVERFITTING"
+  t = t.replace(/([a-z])- ([a-z])/g, '$1$2');                  // "al- gorithmically" -> "algorithmically"
+  if (t.length >= 480) {                                       // cut at the last full sentence, not mid-word
+    const end = Math.max(t.lastIndexOf('. '), t.lastIndexOf('? '));
+    t = end > 120 ? t.slice(0, end + 1) : t.slice(0, t.lastIndexOf(' ')) + '…';
+  }
+  return t;
+}
+
+function Hilite({ text }: { text: string }) {
+  const parts = cleanPaperText(text).split(HILITE);
+  return <>{parts.map((t, i) => (i % 2 === 1 ? <mark key={i} className="bg-yellow px-0.5 text-ink">{t}</mark> : <span key={i}>{t}</span>))}</>;
+}
+
+export function PaperPanel({ paper, project }: { paper: PaperView | null; project: ProjectViewState | null }) {
+  if (!paper) {
+    return (
+      <div>
+        <SectionTitle>PAPER</SectionTitle>
+        <p className="m-1 text-[14px] text-slate">Ask Oak to reproduce a paper. When the Reader opens it, its real text chunks, the extracted claims and the analysis of the run appear here, each from a logged event.</p>
+      </div>
+    );
+  }
+  const a = paper.analysis;
+  return (
+    <div>
+      <SectionTitle right={<span className="font-pixel t-8 text-slate">{paper.source}</span>}>PAPER</SectionTitle>
+      <Panel tone="well" className="!m-1">
+        <p className="font-pixel t-10 m-0 leading-[1.6] text-navy">{paper.title}</p>
+        <p className="m-0 text-[13px] text-slate">{project?.title ?? ''} · {paper.nChunks} chunks read by the Paper Reader</p>
+      </Panel>
+
+      <div className="mt-5" />
+      <SectionTitle>1 · WHAT THE READER READ (first {paper.chunks.length} chunks)</SectionTitle>
+      <div className="mb-5 grid max-h-72 content-start gap-2 overflow-auto pr-1">
+        {paper.chunks.map((c) => (
+          <div key={c.id} className="flex-none bg-cream-deep p-2 text-[14px] leading-relaxed"><b className="font-pixel t-8 block text-navy">CHUNK {c.id.split(':').pop()}</b><Hilite text={c.text} /></div>
+        ))}
+        {paper.chunks.length === 0 && <p className="m-1 text-[13px] text-slate">Waiting for paper.ingested…</p>}
+      </div>
+
+      <SectionTitle>2 · WHAT OAK EXTRACTED (the claim to beat)</SectionTitle>
+      <div className="mb-5 grid gap-1">
+        {paper.claims.map((c, i) => (
+          <Panel key={i} tone="well" className="!m-1 !p-2">
+            <p className="m-0 text-[14px]"><b>{c.metric} ≥ {c.value}</b>{c.condition ? ` — ${c.condition}` : ''}</p>
+            {c.source && <p className="m-0 text-[12px] text-slate">source span: {c.source}</p>}
+          </Panel>
+        ))}
+        {paper.claims.length === 0 && <p className="m-1 text-[13px] text-slate">Waiting for claim.extracted…</p>}
+      </div>
+
+      <SectionTitle>3 · WHAT THE RUN SHOWED (analysis of the measured curve)</SectionTitle>
+      {a ? (
+        <Panel tone="well" className="!m-1">
+          <p className="m-0 text-[15px] leading-snug">
+            {a.trainSaturatedStep !== null && <>Training accuracy reached 0.99 at step <b>{a.trainSaturatedStep}</b>. </>}
+            {a.claimHitStep !== null ? <>{a.metric} reached the paper's <b>{a.claim}</b> at step <b>{a.claimHitStep}</b>{a.delaySteps !== null ? <> — a <b>{a.delaySteps}-step delay</b> between memorising and generalising.</> : '.'}</> : <>{a.metric} never reached the claim ({a.claim}).</>}
+          </p>
+          <p className="m-0 mt-1 text-[12px] text-slate">Computed from {a.points} job.metric points of {a.jobId}; this delayed jump is what the Grokking paper describes.</p>
+        </Panel>
+      ) : <p className="m-1 text-[13px] text-slate">Waiting for analysis.computed (the Analyst runs after the full run)…</p>}
+    </div>
+  );
+}

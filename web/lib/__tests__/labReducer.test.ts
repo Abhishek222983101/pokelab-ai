@@ -76,4 +76,31 @@ describe("labReducer", () => {
     ]);
     expect([v.agents.charmander.species, v.agents.charmander.version, v.agents.charmander.role]).toEqual(["charmeleon", 2, "Implementer"]);
   });
+
+  it("builds each agent's work log (context) from task, thought, finish and reward events", () => {
+    const v = fold([
+      ev("agent.spawned", { agent_id: "pikachu", species: "pikachu", role: "Paper Reader", version: 2, capabilities: ["paper_read"] }),
+      ev("agent.task_started", { agent_id: "pikachu", step_id: "s1", capability: "paper_read", title: "Ingest the paper", project_id: "pX" }),
+      ev("agent.thought", { agent_id: "pikachu", step_id: "s1", project_id: "pX", text: "Read 40 chunks" }),
+      ev("agent.task_finished", { agent_id: "pikachu", step_id: "s1", project_id: "pX", job_id: null }),
+      ev("agent.rewarded", { agent_id: "pikachu", step_id: "s1", project_id: "pX", reward: 0.97, posterior_mean: 0.9 }),
+    ]);
+    expect(v.agents.pikachu.history).toHaveLength(1);
+    expect(v.agents.pikachu.history[0]).toMatchObject({ stepId: "s1", status: "done", reward: 0.97, thoughts: ["Read 40 chunks"] });
+  });
+
+  it("keeps the paper evidence per project and records de-evolution in the lineage", () => {
+    const v = fold([
+      ev("agent.spawned", { agent_id: "pikachu", species: "pikachu", role: "Paper Reader", version: 2, capabilities: [] }),
+      ev("agent.evolved", { agent_id: "pikachu", from_species: "pikachu", species: "raichu", version: 3, evidence: { n: 8, mean_reward: 0.95 }, rule: "r" }),
+      ev("agent.devolved", { agent_id: "pikachu", from_species: "raichu", species: "pikachu", version: 2, reason: "demo reset" }),
+      ev("paper.ingested", { project_id: "pX", title: "Grokking", source: "pdf:x.pdf", n_chunks: 2, chunks: [{ id: "c1", text: "weight decay" }] }),
+      ev("claim.extracted", { project_id: "pX", title: "Grokking", target: { metric: "test_acc", value: 0.95 }, claims: [{ metric: "test_acc", value: 0.95 }] }),
+      ev("analysis.computed", { project_id: "pX", job_id: "job-1", metric: "test_acc", claim: 0.95, points: 23, claim_hit_step: 1900, train_saturated_step: 400, delay_steps: 1500 }),
+    ]);
+    expect([v.agents.pikachu.species, v.agents.pikachu.version]).toEqual(["pikachu", 2]);
+    expect(v.agents.pikachu.lineage.map((l) => l.kind)).toEqual(["devolved", "evolved"]);
+    expect(v.papers.pX.chunks[0].text).toBe("weight decay");
+    expect(v.papers.pX.analysis).toMatchObject({ delaySteps: 1500, claimHitStep: 1900 });
+  });
 });
