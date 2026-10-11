@@ -5,6 +5,7 @@ import { BootScene } from "./scenes/BootScene";
 import { RegionScene } from "./scenes/RegionScene";
 import { LabScene } from "./scenes/LabScene";
 import { GymScene } from "./scenes/GymScene";
+import { recordFrameTime } from "@/lib/perf";
 
 export function PhaserMount() {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -26,6 +27,12 @@ export function PhaserMount() {
         backgroundColor: "#0b0e14",
         scene: [BootScene, RegionScene, LabScene, GymScene],
         pixelArt: true,
+      });
+      // P12.3: real per-frame delta straight from Phaser's own step loop,
+      // not a separate requestAnimationFrame sampler that could drift
+      // from what's actually driving the game.
+      game.events.on(Phaser.Core.Events.POST_STEP, (_time: number, delta: number) => {
+        recordFrameTime(delta);
       });
     });
 

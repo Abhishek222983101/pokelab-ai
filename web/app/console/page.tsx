@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { LabSocket } from "@/lib/labSocket";
 import { useLabStore } from "@/lib/store";
+import { recordPanelRender } from "@/lib/perf";
 
 const WS_URL =
   typeof window !== "undefined"
@@ -99,6 +100,7 @@ function ConnectionBadge({ status }: { status: "connecting" | "open" | "closed" 
 }
 
 function JobPanel({ job }: { job: ReturnType<typeof useLabStore.getState>["jobs"][string] }) {
+  recordPanelRender("JobPanel");
   const metricKeys = Object.keys(job.metrics);
   return (
     <div style={{ border: "1px solid #2a2f3a", borderRadius: 8, padding: 12, marginBottom: 12 }}>
@@ -126,6 +128,7 @@ function JobPanel({ job }: { job: ReturnType<typeof useLabStore.getState>["jobs"
 }
 
 function AgentPanel({ agent }: { agent: ReturnType<typeof useLabStore.getState>["agents"][string] }) {
+  recordPanelRender("AgentPanel");
   return (
     <div style={{ border: "1px solid #2a2f3a", borderRadius: 8, padding: 12, marginBottom: 12, opacity: agent.status === "retired" ? 0.5 : 1 }}>
       <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
