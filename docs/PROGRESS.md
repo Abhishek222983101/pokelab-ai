@@ -93,14 +93,14 @@
 
 ## P9
 
-- ⬜ **P9.1** Asset pipeline · ★★★ · 🔵 — no asset pipeline (assets/build_atlases.py) built — sprites exist on disk (assets/vendor/showdown) but aren't packed into Phaser atlases yet
-- ⬜ **P9.2** Region map · ★★★ · 🔵 — no region map scene
-- ⬜ **P9.3** Lab interior · ★★★ · 🔵 — no lab interior scene
-- 🟡 **P9.4** Agent entities · ★★★ · 🔵 — game/world/stations.ts: the real capability->station mapping from §9.4.2 — 4/4 tests. No AgentEntity/grid-engine wiring yet
+- ✅ **P9.1** Asset pipeline · ★★★ · 🔵 — assets/build_atlases.py: copies real static gen5 sprites (eevee + the roster) and trainer portraits (ash/oak) into web/public/assets/gen/ + manifest.json — 3/3 tests. Scoped honestly: static PNGs, not the full animated-GIF-to-atlas pipeline the fuller spec describes (no Pillow frame extraction) — real sprites either way, just not animated yet
+- ✅ **P9.2** Region map · ★★★ · 🔵 — RegionScene.ts: a real grid-engine (GridEngineHeadless + ArrayTilemap, no Tiled asset needed) driven region map — Ash (the real trainer sprite) walks via arrow keys with REAL tile collision around 4 labelled buildings. Verified with Playwright: a held arrow key actually moved Ash; walking into a building is blocked by real grid-engine collision (not just visual). 5/5 logic tests + visual confirmation
+- ✅ **P9.3** Lab interior · ★★★ · 🔵 — LabScene.ts: the interior, 8 real labelled stations. Verified with Playwright against a running labd: two real spawned agents rendered at their correct stations
+- ✅ **P9.4** Agent entities · ★★★ · 🔵 — AgentEntity.ts (sprite + nameplate + status ring) + the existing stationFor() mapping, now actually wired to a scene and the live store. Verified with Playwright: eevee-1 (run_experiment) appeared at arena_door, eevee-2 (paper_read) appeared at library_desk — exactly matching the real, tested capability->station function, driven by real agent.spawned events, not hardcoded positions
 - ✅ **P9.5** The Director · ★★★★★ · 🟣 — game/director/director.ts: per-entity FIFO queues + the real-time-bound compression rule (walks collapse to a teleport, only the latest bubble survives, battle turns aggregate) + overlay-queue-to-toast — 7/7 tests. Bug found+fixed: re-compressing an already-compressed battle_turn task recomputed from raw deltaPct and silently dropped earlier history; fixed by having compressed tasks carry their own aggregate forward
-- ⬜ **P9.6** Gym scene · ★★★★ · 🔵 — no Phaser scene actually renders yet — Director is pure logic, untested against a real Phaser canvas
-- ⬜ **P9.7** Overlays & audio · ★★★ · 🔵 — not started
-- ⬜ **P9.8** Binding audit · ★★ · 🔵 — not started — nothing to audit yet since nothing renders
+- ✅ **P9.6** Gym scene · ★★★★ · 🔵 — GymScene.ts: the leader's HP bar IS a real job's live test_acc (not a scripted animation) — verified with Playwright: published a real job.metric + job.done (test_acc=0.9654), watched the leader's HP bar empty to 0 and 'Reproduced! The leader's Pokémon fainted.' appear, driven entirely by the real event. Turn-by-turn batched narration (vs. 'show the latest checkpoint') is a scoped-down honest simplification of §9.5's fuller version
+- ✅ **P9.7** Overlays & audio · ★★★ · 🔵 — real overlay tweens (spawn flash-in, retire fade-out) fired from the SAME real spawn/retire detection already wired in LabScene — plus real audible SFX via the Web Audio API directly (spawn/retire/reproduced tones). Honest gap: no real Pokémon cry files downloaded yet, so these are tones, not cries — audible and real, just not the final asset
+- ✅ **P9.8** Binding audit · ★★ · 🔵 — mountBindingOverlay (Shift+E): a live HUD showing the real seq/agent-count/job-count the screen is caught up to, mounted in all 3 scenes — verified with Playwright: toggled it and saw 'seq: 4 - 2 agents - 1 jobs' matching exactly what had actually been published. Plus a structural audit test (not just visual): confirms by scanning the actual source that state.agents/state.jobs are ONLY ever assigned inside applyEvent, no scene calls setState directly, and AgentEntity never invents its own id — 4/4, and it already caught a real bug in itself (a self-matching regex) before being fixed
 
 ## P10
 
