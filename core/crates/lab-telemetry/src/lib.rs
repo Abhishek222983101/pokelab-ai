@@ -94,3 +94,24 @@ pub fn should_warn_power(power: &PowerSample) -> bool {
         .unwrap_or(false);
     not_plugged || not_performance
 }
+
+/// Real free disk, in GiB, for whatever directory `path` is on — the
+/// same `df` shell-out labd's doctor uses, pulled in here (P12.2) so the
+/// job-submission guard (§11-nfr's "refuse new artifacts < 1 GB") can
+/// share it instead of re-implementing its own.
+pub fn free_disk_gb(path: &str) -> Option<f64> {
+    let out = std::process::Command::new("df")
+        .args(["-BG", "--output=avail", path])
+        .output()
+        .ok()?;
+    if !out.status.success() {
+        return None;
+    }
+    let text = String::from_utf8_lossy(&out.stdout);
+    text.lines()
+        .nth(1)?
+        .trim()
+        .trim_end_matches('G')
+        .parse()
+        .ok()
+}

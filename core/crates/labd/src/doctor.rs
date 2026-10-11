@@ -66,29 +66,19 @@ fn check_power() -> CheckResult {
     }
 }
 
-const MIN_FREE_GB: i64 = 3; // §11.2: refuse new artifacts below this
+const MIN_FREE_GB: f64 = 3.0; // §11.2: refuse new artifacts below this
 
 fn check_disk() -> CheckResult {
-    // statvfs via std is unstable; shell to `df` is the pragmatic, portable
-    // choice here (same approach lab-telemetry already takes for power).
-    let out = std::process::Command::new("df")
-        .args(["-BG", "--output=avail", "."])
-        .output();
-    match out {
-        Ok(o) if o.status.success() => {
-            let text = String::from_utf8_lossy(&o.stdout);
-            let avail_gb: i64 = text
-                .lines()
-                .nth(1)
-                .and_then(|l| l.trim().trim_end_matches('G').parse().ok())
-                .unwrap_or(-1);
-            CheckResult {
-                name: "disk",
-                ok: !(0..MIN_FREE_GB).contains(&avail_gb),
-                detail: format!("{avail_gb} GiB free (need >= 3 GiB, §11.2)"),
-            }
-        }
-        _ => CheckResult {
+    // P12.2: shares lab_telemetry::free_disk_gb with lab-gateway's
+    // job-submission guard (the same real `df` shell-out) rather than
+    // each having its own copy that could drift.
+    match lab_telemetry::free_disk_gb(".") {
+        Some(avail_gb) => CheckResult {
+            name: "disk",
+            ok: avail_gb >= MIN_FREE_GB,
+            detail: format!("{avail_gb:.1} GiB free (need >= {MIN_FREE_GB} GiB, §11.2)"),
+        },
+        None => CheckResult {
             name: "disk",
             ok: false,
             detail: "could not run `df`".to_string(),

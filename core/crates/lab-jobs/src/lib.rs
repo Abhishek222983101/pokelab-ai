@@ -155,12 +155,35 @@ impl WarmPool {
                                 busy_for_reader.store(false, Ordering::SeqCst);
                             }
                         }
-                        Ok(None) => break, // EOF: worker process exited
+                        Ok(None) => break, // EOF: worker process exited — handled below
                         Err(e) => {
                             tracing::error!("worker stdout read error: {e}");
                             break;
                         }
                     }
+                }
+                // [BUG FOUND & FIXED, P12.2 chaos drill "kill worker
+                // mid-run"]: a worker that dies (crash, OOM-kill, a chaos
+                // drill's SIGKILL) used to leave its routed job's receiver
+                // waiting forever — nothing was ever sent, so a caller's
+                // `rx.recv()` (and any client UI watching that job) would
+                // hang indefinitely instead of seeing a real failure.
+                // Synthesizing a real Done{status:"error"} for whatever
+                // was still routed here, the moment EOF is actually
+                // observed, closes that gap. The slot itself is left
+                // permanently busy — its process is dead, so routing a
+                // future job to it would just fail writing to a closed
+                // pipe; the pool has no slot-restart path yet (a real,
+                // deliberately out-of-scope-for-this-fix limitation,
+                // documented in scripts/chaos/kill_worker_mid_run.sh).
+                let stranded: Vec<_> = routes_for_reader.lock().unwrap().drain().collect();
+                for (job_id, tx) in stranded {
+                    let _ = tx.send(ProtocolLine::Done {
+                        job_id,
+                        status: "error".to_string(),
+                        final_: None,
+                        error_sig: Some("worker process exited unexpectedly (EOF on stdout)".to_string()),
+                    });
                 }
             });
 
@@ -260,6 +283,16 @@ impl WarmPool {
 
     pub fn n_slots(&self) -> usize {
         self.slots.len()
+    }
+
+    /// Chaos drill support (P12.2) / real operational use (a worker that's
+    /// wedged, e.g. a CUDA hang, needs to be force-killed, not asked
+    /// nicely via stdin): SIGKILLs the slot's process directly, bypassing
+    /// the normal stdin-close shutdown path entirely.
+    pub async fn kill_slot_process(&mut self, idx: usize) -> Result<()> {
+        let slot = self.slots.get_mut(idx).ok_or(JobsError::NoFreeSlot)?;
+        slot.child.kill().await?;
+        Ok(())
     }
 
     pub fn free_slots(&self) -> usize {

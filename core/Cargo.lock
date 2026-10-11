@@ -853,6 +853,7 @@ dependencies = [
  "hmac",
  "lab-jobs",
  "lab-store",
+ "lab-telemetry",
  "rand 0.8.8",
  "serde",
  "serde_json",

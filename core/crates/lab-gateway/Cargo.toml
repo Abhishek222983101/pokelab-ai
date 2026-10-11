@@ -11,6 +11,7 @@ serde_json = { workspace = true }
 tracing = { workspace = true }
 lab-store = { path = "../lab-store" }
 lab-jobs = { path = "../lab-jobs" }
+lab-telemetry = { path = "../lab-telemetry" }
 hmac = { workspace = true }
 sha2 = { workspace = true }
 hex = { workspace = true }
