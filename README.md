@@ -26,12 +26,23 @@ log; nothing is faked for the demo.
 ```bash
 just init      # .env from example, secrets, deps
 just fetch     # sprites, datasets, paper PDFs (needs network once)
+just atlases   # build the sprite manifest the game reads (web/public/assets/gen/)
+cd web && npm run build && cd ..  # the static export labd serves
 just contracts # generate schemas + types, validate fixtures in all 3 languages
-just test      # cargo test + pytest + vitest
-just up        # build web export, start labd (brings up brain + workers) on :7700
+just test      # cargo test + pytest + vitest, every language
+just doctor    # preflight: GPU/power/disk/RAM/assets/datasets (labd) + LLM/Kaggle/Colab/W&B reachability (brain)
+just up        # starts labd (and, via env vars, the real GPU/CPU warm worker pool) on :7700
+just brain     # in a second terminal: starts Professor Oak, connects to labd
 ```
 
-See `docs/SYSTEM-ARCHITECTURE.md` for the full design and `docs/PROGRESS.md` for build status.
+`just up` does **not** start brain — it's a separate process so a crashed
+brain never takes labd (or any already-running job) down with it; `just brain`
+starts it. Both need `LABD_BRAIN_SECRET` set (done by `just init`).
+
+See `docs/SYSTEM-ARCHITECTURE.md` for the full design, `docs/PROGRESS.md` for
+build status (86 sub-phases tracked, current state per phase), and
+`scripts/chaos/README.md` / `scripts/run_acceptance_suite.py` for the
+resilience drills and acceptance-criteria evidence this repo actually runs.
 
 ## Credits
 
