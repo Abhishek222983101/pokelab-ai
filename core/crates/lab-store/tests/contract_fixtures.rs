@@ -18,6 +18,13 @@ fn load_fixture(name: &str) -> lab_store::Event {
 }
 
 #[test]
+fn job_started_fixture_parses_as_event() {
+    let event = load_fixture("job_started_event.json");
+    assert_eq!(event.kind, "job.started");
+    assert_eq!(event.payload["kit"], "grokking");
+}
+
+#[test]
 fn job_metric_fixture_parses_as_event() {
     let event = load_fixture("job_metric_event.json");
     assert_eq!(event.kind, "job.metric");

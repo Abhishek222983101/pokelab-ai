@@ -55,7 +55,13 @@ export const useLabStore = create<LabStoreState>((set) => ({
         recentEvents: [e, ...state.recentEvents].slice(0, MAX_RECENT_EVENTS),
       };
 
-      if (e.kind === "job.metric") {
+      if (e.kind === "job.started") {
+        const jobId = e.payload.job_id as string;
+        const existing = next.jobs[jobId] ?? {
+          jobId, project: e.project, status: "running", metrics: {}, final: null, errorSig: null,
+        };
+        next.jobs = { ...next.jobs, [jobId]: { ...existing, kit: e.payload.kit as string } };
+      } else if (e.kind === "job.metric") {
         const jobId = e.payload.job_id as string;
         const key = e.payload.k as string;
         const step = e.payload.step as number;
