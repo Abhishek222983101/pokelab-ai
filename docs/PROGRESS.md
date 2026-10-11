@@ -93,6 +93,12 @@
 
 ## P9
 
+> **11 Oct correction (see docs/GAP-ANALYSIS.md):** P9 is **reopened** — RegionScene/GymScene are not connected to events (the
+> working surface is the `/lab` desk). P4–P7 modules are unit-tested but most are **not called by the live project loop**
+> (Oracle, Navigator, Medic, Router, comparator_v2, pokedex, refine/merge). "Done" now also requires: *a judge can see it
+> after typing one request*.
+
+
 - ✅ **P9.1** Asset pipeline · ★★★ · 🔵 — assets/build_atlases.py: copies real static gen5 sprites (eevee + the roster) and trainer portraits (ash/oak) into web/public/assets/gen/ + manifest.json — 3/3 tests. Scoped honestly: static PNGs, not the full animated-GIF-to-atlas pipeline the fuller spec describes (no Pillow frame extraction) — real sprites either way, just not animated yet
 - ✅ **P9.2** Region map · ★★★ · 🔵 — RegionScene.ts: a real grid-engine (GridEngineHeadless + ArrayTilemap, no Tiled asset needed) driven region map — Ash (the real trainer sprite) walks via arrow keys with REAL tile collision around 4 labelled buildings. Verified with Playwright: a held arrow key actually moved Ash; walking into a building is blocked by real grid-engine collision (not just visual). 5/5 logic tests + visual confirmation
 - ✅ **P9.3** Lab interior · ★★★ · 🔵 — LabScene.ts: the interior, 8 real labelled stations. Verified with Playwright against a running labd: two real spawned agents rendered at their correct stations
