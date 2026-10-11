@@ -1,0 +1,77 @@
+{
+  "$defs": {
+    "Claim": {
+      "properties": {
+        "metric": {
+          "title": "Metric",
+          "type": "string"
+        },
+        "value": {
+          "title": "Value",
+          "type": "number"
+        },
+        "condition": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Condition"
+        },
+        "quote": {
+          "title": "Quote",
+          "type": "string"
+        },
+        "source_chunk_id": {
+          "title": "Source Chunk Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "metric",
+        "value",
+        "quote",
+        "source_chunk_id"
+      ],
+      "title": "Claim",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "paper_id": {
+      "title": "Paper Id",
+      "type": "string"
+    },
+    "title": {
+      "title": "Title",
+      "type": "string"
+    },
+    "kit": {
+      "title": "Kit",
+      "type": "string"
+    },
+    "hero": {
+      "default": false,
+      "title": "Hero",
+      "type": "boolean"
+    },
+    "claims": {
+      "items": {
+        "$ref": "#/$defs/Claim"
+      },
+      "title": "Claims",
+      "type": "array"
+    }
+  },
+  "required": [
+    "paper_id",
+    "title",
+    "kit"
+  ],
+  "title": "PaperPack",
+  "type": "object"
+}

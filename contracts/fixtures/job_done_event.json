@@ -1,0 +1,16 @@
+{
+  "seq": 2,
+  "ts": "2026-10-11T04:53:52.456Z",
+  "kind": "job.done",
+  "v": 1,
+  "project": "grokking-demo",
+  "actor": "labd",
+  "corr": null,
+  "causation": null,
+  "payload": {
+    "job_id": "job-1", "status": "ok",
+    "final": {"test_acc": 0.9654, "train_acc": 1.0, "wall_s": 12.9},
+    "error_sig": null
+  },
+  "display": null
+}

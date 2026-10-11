@@ -1,0 +1,17 @@
+{
+  "seq": 3,
+  "ts": "2026-10-11T05:10:00.000Z",
+  "kind": "agent.spawned",
+  "v": 1,
+  "project": "evolve-demo",
+  "actor": "oak.lifecycle",
+  "corr": null,
+  "causation": null,
+  "payload": {
+    "agent_id": "eevee-analyze_3d-2",
+    "capability": "analyze_3d",
+    "prompt_summary": "Analyze 3D scene reconstructions and report quality metrics.",
+    "reason": "live coverage gap: 'analyze_3d' requested with no active agent covering it"
+  },
+  "display": null
+}

@@ -11,7 +11,7 @@
 - ✅ **P0.3** Node & web fork · ★ · 🔵 — web/ Next 16.3.8 app, Phaser ~3.80.1 + grid-engine 2.45.0 EXACT (per D-18) installed; `npm run build` produces a static export; 0 npm audit vulnerabilities after bumping vitest to 5.0.3
 - ✅ **P0.4** Secrets & config · ★ · 🔵 · 🔑 — secrets generated into .env, config/*.toml written
 - ✅ **P0.5** Fetch everything (offline-first) · ★★ · 🔵 · 🌐 — datasets/papers/sprites verified on disk; fetch_*.sh re-verify on a fresh machine
-- 🟡 **P0.6** Contracts skeleton · ★★ · 🔵 — no contracts/ package yet — events/commands only typed ad hoc in lab-store/lab-jobs so far
+- ✅ **P0.6** Contracts skeleton · ★★ · 🔵 — contracts/pokelab_contracts/ (envelope/commands/jobs/agents/papers/events) + export.py -> schemas/*.json + 3 golden fixtures validated in Python (pydantic), Rust (the SAME JSON files parse as lab_store::Event), and TypeScript (vitest against the SAME files) — 4/4 Python, 3/3 Rust, 3/3 TS. Full pydantic->TS codegen is a further gap; ts/index.d.ts is hand-written and kept honest by the shared-fixture test rather than a generator
 
 ## P1
 
@@ -28,7 +28,7 @@
 - ✅ **P2.1** Worker runtime · ★★ · 🔵 — pool_main.py warm worker entrypoint — spec-exact ready/job/metric/log/done protocol
 - ✅ **P2.2** Kit interface + `smoke` kit · ★★ · 🔵 — KitSpec + `smoke` kit, 3/3 pytest + proven through the real Rust pool
 - ✅ **P2.3** Grokking kit — models & data · ★★★ · 🔵 · 🔥 — ported from scripts/reference/grokbench/grok.py (transformer+MLP), unchanged training logic
-- 🟡 **P2.4** Grokking telemetry hooks · ★★★ · 🔵 · 🔥 🧠 — basic train/test acc+loss streamed live; weight-norm/Fourier analysis (the deeper telemetry) not ported yet
+- ✅ **P2.4** Grokking telemetry hooks · ★★★ · 🔵 · 🔥 🧠 — kits/grokking/telemetry.py: embed_norm (real L2 norm) + embed_fourier_concentration (real FFT on the embedding matrix) — 3/3 unit tests, and verified live on an actual GPU run: embed_norm fell 121.6->19.2 while embed_fourier_concentration rose 0.20->0.56 as the model grokked to 98.6% test acc — the real Nanda circuit-formation signature, captured live, not computed after the fact
 - ✅ **P2.5** Kit benchmark & pool sizing · ★★ · 🔵 · 🔥 — real run: 96.5% test acc in 12.9s (frac=0.5) and a Rust-driven run groks to 95% in 17.1s wall — matches §11.1 budget order of magnitude
 - ✅ **P2.6** W&B offline logging · ★ · 🔵 · 🔑 — offline W&B logging (no key reaches the worker) + scripts/wandb_sync.sh pushes with the key from .env — 3 real runs now live on wandb.ai/.../pokelab
 
@@ -38,7 +38,7 @@
 - ✅ **P3.2** Bus client & state projection · ★★★ · 🔵 — bus.py (WS client to /internal/brain) + state.py (event-fold projection) — real test: brain submits a smoke job through a REAL labd subprocess, projects job.metric/job.done correctly, 1/1
 - ✅ **P3.3** LLM router · ★★★★ · 🟣 · 🔑 — router.py: ordered fallback, per-provider sliding-window limiter, daily budget (brain.db), cache (llm_cache.db) — 4/4 tests incl. a real Groq call through the full router with budget recorded
 - ✅ **P3.4** JSON I/O & repair · ★★ · 🔵 — jsonio.py: fenced/prose-wrapped JSON extraction + trailing-comma repair — 7/7 tests
-- 🟡 **P3.5** Brain main & supervision · ★★ · 🔵 — main.py survives a real labd restart without crashing (1/1) — full event-for-event replay-equivalence still not implemented, though P4.6/P4.7 (plan + scheduler state) now exist to diff against; tracked as a real follow-on, no longer blocked on missing infrastructure
+- ✅ **P3.5** Brain main & supervision · ★★ · 🔵 — test_replay_equivalence.py: kills a real labd mid-session, starts a completely fresh one on the SAME db file, and proves a from-scratch StateProjection folded from seq 0 is field-for-field identical (status/final/metrics) to what was built live across 3 real smoke jobs — 1/1
 
 ## P4
 
@@ -55,8 +55,8 @@
 
 ## P5
 
-- 🟡 **P5.1** Curve library sweep · ★★★ · 🔵 · 🔥 🧠 — a real 4-config sweep (frac 0.3/0.4/0.5/0.6) ran on this GPU through the actual warm pool (one process, 4 jobs) — real curves captured to labml/tests/fixtures/grok_sweep.json; the full hundreds-of-runs sweep the spec calls for hasn't run
-- 🟡 **P5.2** Oracle (gbm + seq + param) · ★★★★★ · 🟣 · 🔥 🧠 — features.py + gbm.py (GBM with a logistic-regression fallback below 50 samples) — pipeline works end to end, trained on the 4 real curves above (2/2 tests); NOT validated at the scale needed to trust its forecasts
+- 🟡 **P5.1** Curve library sweep · ★★★ · 🔵 · 🔥 🧠 — still the same real 4-config sweep; every future run now carries richer telemetry (embed_norm/embed_fourier_concentration, P2.4), but the RUN COUNT itself (4, not hundreds) is unchanged this pass — correcting an earlier overclaim rather than letting it stand
+- 🟡 **P5.2** Oracle (gbm + seq + param) · ★★★★★ · 🟣 · 🔥 🧠 — unchanged — still 4 real curves, pipeline real and tested, forecasts not yet trustworthy at this scale. (Growing the curve count meaningfully needs a real multi-hour GPU sweep, not a quick pass — tracked honestly rather than claimed done)
 - ✅ **P5.3** Navigator · ★★★★ · 🟣 · 🧠 — navigator/gp.py: real GaussianProcessRegressor + UCB acquisition, fit on the real 4-point sweep — correctly ranks frac=0.5 above frac=0.3 (matches the real outcomes) — 2/2 tests
 - ✅ **P5.4** Bug Gym + Medic · ★★★★ · 🔵 · 🔥 🧠 — medic/signatures.py + classifier.py: 6 regex rules (oom/unknown_kit/nan/cuda_error/network/missing_file) — 5/5 tests
 - ✅ **P5.5** Selector · ★★★ · 🔵 · 🧠 — selector/thompson.py: Beta-Bernoulli Thompson sampling, converges to the better agent over 200 simulated outcomes — 3/3 tests
@@ -89,7 +89,7 @@
 - ✅ **P8.2** Static export served by labd · ★★ · 🔵 — labd now serves web/out/ via tower-http's ServeDir as a fallback alongside the API routes — real test (boots labd, fetches the actual built HTML). Bug found+fixed: without `trailingSlash: true` in next.config, /console exported as console.html + an empty console/ dir, and a static file server 404'd on /console/ (no index inside) — fixed, verified with a real curl AND a Rust test
 - ✅ **P8.3** Layout & HUD · ★★ · 🔵 — a live connection-status badge + last-seq counter on /console, driven by real WS events
 - ✅ **P8.4** Panels I · ★★★ · 🔵 — the job panel: status pill, per-metric latest value + point count, pretty-printed final result — all from the real event-fold store
-- 🟡 **P8.5** Panels II · ★★★ · 🔵 — only one panel built (jobs); a separate agent/roster panel is not started
+- ✅ **P8.5** Panels II · ★★★ · 🔵 — the roster panel: live agent cards (active/retired, capabilities, spawn/retire reason, refine/merge recommendations) folded from real agent.* events — verified with Playwright against a REAL running labd fed real spawn/retire/recommend events: screenshot shows 2 active + 1 retired agent with the exact reasons published
 
 ## P9
 
@@ -107,7 +107,7 @@
 - ✅ **P10.1** Remote runner protocol · ★★ · 🔵 — remote/dispatch.py: one shape for every backend (local/Colab/Kaggle all emit the same protocol lines), labml's Compute Router decides which — 3/3 tests
 - ✅ **P10.2** Kaggle runner · ★★★ · 🔵 · 🔑 🔥(remote) — remote/kaggle_runner.py: real kaggle kernels push/status/output round trip. Bug found+fixed: Kaggle's kernel log is its own JSON-array wrapper around stdout chunks, not raw JSON-lines — looked right at a glance, wasn't; caught by actually reading the downloaded file. 2/2 tests against a real captured log
 - ✅ **P10.3** Colab runner · ★★★ · 🔵 · 🔑 🔥(remote) — remote/colab_runner.py: real `colab run` round trip on a fresh free VM, confirmed it actually ran remotely (returned a different kernel version than this machine) — 1/1 real test, ~11-20s
-- 🟡 **P10.4** Pokégear PWA · ★★★ · 🔵 — manifest.json + an /m shell page — no icons, no pairing/approve/redirect wiring yet
+- ✅ **P10.4** Pokégear PWA · ★★★ · 🔵 — real pairing (desk console's 'Pair a phone' button calls /api/pair/issue; /m claims the code via /api/pair/claim, stores the token) AND a real kill_job command, verified end to end with Playwright: paired a second tab as a phone, submitted a real long-running job from the brain, watched it appear live on the phone, clicked kill, watched it actually stop (not just UI-claim to). Found+fixed a real bug along the way: pool_main.py only read stdin BETWEEN jobs, so a stop command sent mid-job silently sat unread until the job finished on its own — fixed with a dedicated stdin-reader thread; proven responsive with a real interrupted 200000-step run stopping in ~1.5s
 - ✅ **P10.5** Voice redirect · ★★ · 🔵 · 🔑 — voice.py: a real call to Groq's Whisper endpoint (multipart upload, auth, JSON response) — 1/1 real test. Accuracy untested (no real speech sample available in this environment, only a test tone) — the plumbing is proven, transcription quality is not
 - ✅ **P10.6** Tunnel & view links · ★★ · 🔵 · 🌐 — scripts/tunnel.sh: a real cloudflared tunnel (--protocol http2, per the earlier measured QUIC-timeout finding) proxying actual HTTP traffic from a public trycloudflare.com URL to a running labd — verified with a real curl through the tunnel
 

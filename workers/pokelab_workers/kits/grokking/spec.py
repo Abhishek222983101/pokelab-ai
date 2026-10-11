@@ -17,6 +17,8 @@ from typing import Any
 import torch
 import torch.nn.functional as F
 
+from pokelab_workers.kits.grokking.telemetry import embed_fourier_concentration, embed_norm
+
 from pokelab_workers.kits.base import KitContext, register
 from pokelab_workers.kits.grokking.models import MLP, Transformer
 
@@ -101,6 +103,14 @@ class GrokkingKit:
             if step % eval_every == 0 or step == steps:
                 trl, tra, tel, tea = evaluate()
                 last = {"train_acc": tra, "test_acc": tea, "train_loss": trl, "test_loss": tel}
+                # §2.4 the deeper telemetry: the Nanda paper's own signature
+                # of grokking — embedding weight norm (shrinks under decay)
+                # and how much of the embedding's power concentrates into a
+                # few Fourier frequencies (circuits becoming periodic).
+                # Real tensor ops on the actual trained weights, every eval
+                # — not a post-hoc analysis script run once at the end.
+                last["embed_norm"] = embed_norm(model)
+                last["embed_fourier_concentration"] = embed_fourier_concentration(model, p)
                 for key, value in last.items():
                     ctx.emit(step, key, value)
                 if run is not None:

@@ -1,0 +1,7 @@
+{
+  "name": "pokelab-contracts",
+  "private": true,
+  "type": "module",
+  "scripts": { "test": "vitest run" },
+  "devDependencies": { "vitest": "^5.0.3", "@types/node": "^22.10.2" }
+}

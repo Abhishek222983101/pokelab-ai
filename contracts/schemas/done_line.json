@@ -1,0 +1,48 @@
+{
+  "properties": {
+    "t": {
+      "const": "done",
+      "default": "done",
+      "title": "T",
+      "type": "string"
+    },
+    "job_id": {
+      "title": "Job Id",
+      "type": "string"
+    },
+    "status": {
+      "enum": [
+        "ok",
+        "stopped",
+        "error",
+        "timeout"
+      ],
+      "title": "Status",
+      "type": "string"
+    },
+    "final": {
+      "additionalProperties": true,
+      "default": {},
+      "title": "Final",
+      "type": "object"
+    },
+    "error_sig": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Error Sig"
+    }
+  },
+  "required": [
+    "job_id",
+    "status"
+  ],
+  "title": "DoneLine",
+  "type": "object"
+}

@@ -18,14 +18,22 @@ export interface LabEvent {
   display?: Record<string, unknown> | null;
 }
 
+export interface CommandResult {
+  command: string;
+  ok: boolean;
+  detail: string;
+}
+
 type EventHandler = (e: LabEvent) => void;
 type StatusHandler = (status: "connecting" | "open" | "closed") => void;
+type CommandResultHandler = (r: CommandResult) => void;
 
 export class LabSocket {
   private ws: WebSocket | null = null;
   private lastSeq = 0;
   private handlers: Set<EventHandler> = new Set();
   private statusHandlers: Set<StatusHandler> = new Set();
+  private commandResultHandlers: Set<CommandResultHandler> = new Set();
   private reconnectDelayMs = 1000;
   private readonly maxReconnectDelayMs = 15000;
   private closedByUser = false;
@@ -40,6 +48,18 @@ export class LabSocket {
   onStatus(handler: StatusHandler): () => void {
     this.statusHandlers.add(handler);
     return () => this.statusHandlers.delete(handler);
+  }
+
+  onCommandResult(handler: CommandResultHandler): () => void {
+    this.commandResultHandlers.add(handler);
+    return () => this.commandResultHandlers.delete(handler);
+  }
+
+  /** §5.4.4's infra commands (currently just kill_job — see ws.rs). */
+  sendCommand(command: string, jobId?: string): void {
+    if (this.ws?.readyState === WebSocket.OPEN) {
+      this.ws.send(JSON.stringify({ type: "command", command, job_id: jobId }));
+    }
   }
 
   connect(sinceSeq = 0): void {
@@ -65,7 +85,7 @@ export class LabSocket {
     };
 
     ws.onmessage = (ev) => {
-      let msg: { type: string; e?: LabEvent; since?: number };
+      let msg: { type: string; e?: LabEvent; since?: number; command?: string; ok?: boolean; detail?: string };
       try {
         msg = JSON.parse(ev.data as string);
       } catch {
@@ -76,6 +96,9 @@ export class LabSocket {
         for (const h of this.handlers) h(msg.e);
       } else if (msg.type === "resync" && typeof msg.since === "number") {
         this.lastSeq = msg.since;
+      } else if (msg.type === "command_result" && msg.command) {
+        const result: CommandResult = { command: msg.command, ok: !!msg.ok, detail: msg.detail ?? "" };
+        for (const h of this.commandResultHandlers) h(result);
       }
     };
 
