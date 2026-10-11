@@ -1,35 +1,46 @@
-import Phaser from "phaser";
+import * as Phaser from 'phaser';
+import { artSteps } from '../art/register';
 
-/** Loads the real manifest built by assets/build_atlases.py (P9.1) and
- * the sprites it points at — nothing here is a placeholder shape. */
+/** Only the latest Boot run may continue (PhaserMount can start this scene twice). */
+let bootToken = 0;
+
+const FONT_LOAD_TIMEOUT_MS = 2000;
+
 export class BootScene extends Phaser.Scene {
   constructor() {
-    super("boot");
+    super('Boot');
   }
 
-  preload() {
-    // [BUG FOUND via Playwright against a real labd]: a relative path
-    // here resolves against the PAGE's URL, not the site root — since
-    // this page is served at /game/, "assets/gen/..." 404'd by
-    // resolving to /game/assets/gen/... instead of /assets/gen/...
-    // Leading slash fixes it regardless of which route mounts the game.
-    this.load.json("manifest", "/assets/gen/manifest.json");
+  /**
+   * PhaserMount writes marketId / speciesId / wallet / onExit into the registry before Boot runs.
+   * Never overwrite them; only fill gaps from scene-start data (older mounts pass data that way).
+   */
+  init(data?: Record<string, unknown>) {
+    if (!data) return;
+    for (const key of ['marketId', 'speciesId', 'wallet', 'onExit']) {
+      if (data[key] !== undefined && !this.registry.has(key)) this.registry.set(key, data[key]);
+    }
   }
 
   create() {
-    const manifest = this.cache.json.get("manifest") as {
-      mons: Record<string, { front: string; back: string }>;
-      trainers: Record<string, string>;
-    };
+    const token = ++bootToken;
+    this.cameras.main.setBackgroundColor('#0f1f5c');
+    void this.boot(token);
+  }
 
-    this.load.once("complete", () => this.scene.start("region"));
-    for (const [species, paths] of Object.entries(manifest.mons)) {
-      this.load.image(`mon:${species}:front`, `/${paths.front}`);
-      this.load.image(`mon:${species}:back`, `/${paths.back}`);
+  private async boot(token: number) {
+    // Press Start 2P is loaded by the page CSS: wait for it so Phaser text measures correctly.
+    if (typeof document !== 'undefined' && document.fonts) {
+      await Promise.race([
+        document.fonts.load('12px "Press Start 2P"').catch(() => undefined),
+        new Promise((res) => window.setTimeout(res, FONT_LOAD_TIMEOUT_MS)),
+      ]);
     }
-    for (const [name, path] of Object.entries(manifest.trainers)) {
-      this.load.image(`trainer:${name}`, `/${path}`);
-    }
-    this.load.start();
+    if (token !== bootToken || !this.sys.isActive()) return;
+
+    // The particle/utility textures are needed by the very next scene; the rest of the art is built
+    // step by step under the loading bar in PreloadScene (registerArt() is just all those steps).
+    artSteps(this)[0].run();
+    this.scene.start('Preload');
   }
 }

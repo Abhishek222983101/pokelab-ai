@@ -30,6 +30,19 @@ fn default_port() -> u16 {
     7700
 }
 
+/// One past the highest `job-N` ever recorded, so ids stay unique across restarts.
+fn next_job_number(store: &lab_store::Store) -> u64 {
+    let max = store
+        .since(0, None)
+        .unwrap_or_default()
+        .iter()
+        .filter_map(|e| e.payload.get("job_id").and_then(|v| v.as_str()))
+        .filter_map(|id| id.strip_prefix("job-").and_then(|n| n.parse::<u64>().ok()))
+        .max()
+        .unwrap_or(0);
+    max + 1
+}
+
 fn default_db_path() -> std::path::PathBuf {
     std::path::PathBuf::from("../var/lab.db")
 }
@@ -38,7 +51,7 @@ fn default_db_path() -> std::path::PathBuf {
 /// set — on a box without the workers venv built yet, labd still boots
 /// (job_submit just gets rejected with a clear reason, see ws.rs) rather
 /// than refusing to start.
-async fn spawn_warm_pool_if_configured() -> Option<lab_jobs::WarmPool> {
+async fn spawn_warm_pool_if_configured(store: &lab_store::Store) -> Option<lab_jobs::WarmPool> {
     let python = std::env::var("LABD_WORKERS_PYTHON").ok()?;
     let workers_cwd = std::env::var("LABD_WORKERS_CWD").unwrap_or_else(|_| "../workers".to_string());
     let device = std::env::var("LABD_WORKER_DEVICE").unwrap_or_else(|_| "cpu".to_string());
@@ -63,6 +76,7 @@ async fn spawn_warm_pool_if_configured() -> Option<lab_jobs::WarmPool> {
     match lab_jobs::WarmPool::spawn(cfg).await {
         Ok(pool) => {
             tracing::info!(slots = pool.n_slots(), "warm worker pool started");
+            pool.seed_job_ids(next_job_number(store));
             Some(pool)
         }
         Err(e) => {
@@ -136,7 +150,7 @@ async fn run_up(db_path: std::path::PathBuf, read_only: bool) -> anyhow::Result<
     let warm_pool = if read_only {
         None
     } else {
-        spawn_warm_pool_if_configured().await
+        spawn_warm_pool_if_configured(&store).await
     };
 
     // §4.4/§8.2: labd serves the static-exported web app directly — no

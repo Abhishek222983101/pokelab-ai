@@ -207,6 +207,12 @@ impl WarmPool {
         })
     }
 
+    /// Continue numbering after the highest id already in the event log, so a restarted labd never
+    /// reuses `job-N` (the brain correlates job.done by id; a reused id would match a stale result).
+    pub fn seed_job_ids(&self, next: u64) {
+        self.next_job_id.fetch_max(next, Ordering::SeqCst);
+    }
+
     /// Submit a job to the first free slot. Returns the assigned job_id and
     /// a receiver of that job's protocol lines (metric/log), ending with
     /// `Done`. The slot is marked free by the reader task itself the moment
