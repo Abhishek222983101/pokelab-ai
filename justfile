@@ -34,6 +34,9 @@ contracts:
 up:
     cd core && cargo run -p labd --release
 
+brain:
+    cd brain && uv run python -m pokelab_brain.main
+
 dev:
     cd core && cargo run -p labd &
     cd web && npm run dev
@@ -66,7 +69,7 @@ tunnel:
     cloudflared tunnel --no-autoupdate --protocol http2 --url http://localhost:7700
 
 replay db:
-    cd core && cargo run -p labd --release -- --replay {{db}}
+    cd core && cargo run -p labd --release -- replay {{db}}
 
 docs:
     bash docs/build_docs.sh

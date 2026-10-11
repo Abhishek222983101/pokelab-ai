@@ -91,11 +91,13 @@ ACCEPTANCE_CRITERIA: list[AcceptanceCriterion] = [
         "different feature — not a config-resubmission dedup cache.",
     ),
     AcceptanceCriterion(
-        "AC-13", "Failure repair (Medic 0 LLM calls, Debugger novel-bug)", "not_implemented",
-        [],
-        note="no dedicated zero-LLM-call Medic triage system exists. refine.py has a "
-        "docstring reference to 'medic' but no implementation of the AC's specific "
-        "pass condition (<1s triage, zero LLM calls, retrieved similar cases).",
+        "AC-13", "Failure repair (Medic 0 LLM calls, Debugger novel-bug)", "partial",
+        ["labml/tests/test_medic.py"],
+        note="[CORRECTED after an initial miss]: labml/pokelab_labml/medic/ is real — "
+        "a genuine zero-LLM-call regex classifier (OOM/NaN/network/missing-file/etc, "
+        "each with a known fix), tested. What's NOT real: it isn't wired into brain's "
+        "actual job-failure path anywhere (no brain code imports it yet), and there is "
+        "no 'Debugger' component for novel bugs with retrieved similar cases.",
     ),
     AcceptanceCriterion(
         "AC-14", "Oracle (AUROC >= 0.85 at 20% prefix)", "not_implemented",
