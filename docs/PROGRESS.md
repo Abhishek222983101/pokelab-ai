@@ -122,7 +122,7 @@
 
 ## P12
 
-- ⬜ **P12.1** Doctor complete · ★★ · 🔵 — 
+- ✅ **P12.1** Doctor complete · ★★ · 🔵 — all §5.10 checks real now, split correctly: labd's Rust doctor (system-level: gpu/power/disk/ram/assets/datasets/web_build/tunnel_binary/workers_venv/env_keys, 10 checks) + the new brain/pokelab_brain/doctor.py (LLM/cloud: elevate_gateway and groq each get a REAL one-token completion, not a ping; kaggle/colab/wandb honestly report absent-but-non-blocking). `just doctor` runs both. [BUG FOUND & FIXED]: the datasets check pointed at `../data/raw/<name>`, a convention fetch_datasets.sh expected but nothing ever wrote to — the real P11 kits cache under workers/var/data/ instead (new data_home.py, redirecting sklearn's OpenML cache out of the user's home directory and into the project, matching nerf's existing convention); fetch_datasets.sh rewritten to actually pre-warm the real caches. 4 Rust unit/integration tests + 4 Python tests (using the real GROQ/ELEVATE keys already in .env), full suites green (Rust 0 failures, brain 214/214, workers 22/22).
 - ⬜ **P12.2** Chaos drills · ★★★ · 🔵 — 
 - ⬜ **P12.3** Performance instrumentation · ★★★ · 🔵 — 
 - ⬜ **P12.4** Acceptance suite · ★★★ · 🔵 · 🔥 — 

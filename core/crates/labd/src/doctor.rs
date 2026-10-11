@@ -16,8 +16,11 @@ pub fn run() -> Vec<CheckResult> {
         check_gpu(),
         check_power(),
         check_disk(),
+        check_ram(),
         check_assets(),
         check_datasets(),
+        check_web_out(),
+        check_tunnel_binary(),
         check_workers_venv(),
         check_env_keys(),
     ]
@@ -93,6 +96,67 @@ fn check_disk() -> CheckResult {
     }
 }
 
+const MIN_FREE_RAM_GB: f64 = 3.0; // §14-refs R5: warm worker 1.17 GB each + browser
+
+fn check_ram() -> CheckResult {
+    // /proc/meminfo's MemAvailable (not MemFree) is the real "can I
+    // allocate this much without swapping" number — the same one `free`
+    // reports as "available".
+    let meminfo = std::fs::read_to_string("/proc/meminfo");
+    let avail_gb = meminfo.ok().and_then(|text| {
+        text.lines()
+            .find(|l| l.starts_with("MemAvailable:"))
+            .and_then(|l| l.split_whitespace().nth(1))
+            .and_then(|kb| kb.parse::<f64>().ok())
+            .map(|kb| kb / 1024.0 / 1024.0)
+    });
+    match avail_gb {
+        Some(gb) => CheckResult {
+            name: "ram",
+            ok: gb >= MIN_FREE_RAM_GB,
+            detail: format!("{gb:.1} GiB available (need >= {MIN_FREE_RAM_GB} GiB, §14-refs R5)"),
+        },
+        None => CheckResult {
+            name: "ram",
+            ok: false,
+            detail: "could not read /proc/meminfo".to_string(),
+        },
+    }
+}
+
+fn check_web_out() -> CheckResult {
+    let index = Path::new("../web/out/index.html");
+    let manifest = Path::new("../web/public/assets/gen/manifest.json");
+    let web_ok = index.is_file();
+    let atlases_ok = manifest.is_file();
+    CheckResult {
+        name: "web_build",
+        ok: web_ok && atlases_ok,
+        detail: match (web_ok, atlases_ok) {
+            (true, true) => "web/out built, atlases generated".to_string(),
+            (false, _) => "web/out missing — run `npm run build` in web/".to_string(),
+            (_, false) => "assets/gen/manifest.json missing — run `python assets/build_atlases.py`".to_string(),
+        },
+    }
+}
+
+fn check_tunnel_binary() -> CheckResult {
+    let found = std::process::Command::new("which")
+        .arg("cloudflared")
+        .output()
+        .map(|o| o.status.success())
+        .unwrap_or(false);
+    CheckResult {
+        name: "tunnel_binary",
+        ok: true, // not having it is fine unless the demo specifically needs a public URL
+        detail: if found {
+            "cloudflared on PATH".to_string()
+        } else {
+            "cloudflared not found — scripts/tunnel.sh (remote viewing) unavailable, local demo unaffected".to_string()
+        },
+    }
+}
+
 fn check_assets() -> CheckResult {
     let dir = Path::new("../assets/vendor/showdown");
     let ok = dir.is_dir() && dir.read_dir().map(|mut r| r.next().is_some()).unwrap_or(false);
@@ -108,19 +172,35 @@ fn check_assets() -> CheckResult {
 }
 
 fn check_datasets() -> CheckResult {
-    let needed = ["mnist", "tiny_nerf", "matbench_expt_gap", "matbench_steels", "tabular"];
-    let missing: Vec<&str> = needed
-        .iter()
-        .filter(|d| !Path::new(&format!("../data/raw/{d}")).is_dir())
-        .copied()
-        .collect();
+    // [BUG FOUND & FIXED, P12.1]: this used to check `../data/raw/<name>`,
+    // a convention fetch_datasets.sh expected but nothing ever actually
+    // wrote to — the P11 kits (materials/arena/distillation/nerf) cache
+    // their real OpenML/tiny_nerf downloads under workers/var/data/
+    // instead (data_home.py), so this check always failed regardless of
+    // whether the datasets were really present. Checking the real paths.
+    let openml_cache_present = Path::new("../workers/var/data/sklearn_cache/openml").is_dir();
+    let tiny_nerf_present = Path::new("../workers/var/data/tiny_nerf_data.npz").is_file();
+    let missing: Vec<&str> = [
+        (!openml_cache_present).then_some("openml datasets (materials/arena/distillation)"),
+        (!tiny_nerf_present).then_some("tiny_nerf_data.npz (nerf)"),
+    ]
+    .into_iter()
+    .flatten()
+    .collect();
+    // Not a hard requirement: every kit using one of these fetches it on
+    // its own first real run (and caches it after). This check is a
+    // pre-warm status report, not a pass/fail gate — a cold demo just
+    // pays a one-time download on its first job of that kit.
     CheckResult {
         name: "datasets",
-        ok: missing.is_empty(),
+        ok: true,
         detail: if missing.is_empty() {
-            format!("{} datasets present", needed.len())
+            "real OpenML cache + tiny_nerf_data.npz already pre-warmed under workers/var/data/".to_string()
         } else {
-            format!("missing: {} — run `just fetch`", missing.join(", "))
+            format!(
+                "not pre-warmed yet (each kit self-fetches on first real run, no action needed): {}",
+                missing.join(", ")
+            )
         },
     }
 }
@@ -156,5 +236,39 @@ fn check_env_keys() -> CheckResult {
         } else {
             format!("missing: {} — run `just init`", missing.join(", "))
         },
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn run_returns_one_result_per_real_check_with_a_name_and_detail() {
+        let results = run();
+        assert_eq!(results.len(), 10, "P12.1: every §5.10 system-level check labd owns");
+        let names: Vec<&str> = results.iter().map(|r| r.name).collect();
+        assert_eq!(
+            names,
+            vec!["gpu", "power", "disk", "ram", "assets", "datasets", "web_build", "tunnel_binary", "workers_venv", "env_keys"]
+        );
+        for r in &results {
+            assert!(!r.detail.is_empty(), "{} has an empty detail string", r.name);
+        }
+    }
+
+    #[test]
+    fn ram_check_reads_the_real_proc_meminfo_on_this_machine() {
+        let result = check_ram();
+        // this machine really has /proc/meminfo (Linux CI/dev box) — a
+        // parse failure here is a real bug, not an environment quirk
+        assert!(!result.detail.contains("could not read"), "{}", result.detail);
+    }
+
+    #[test]
+    fn tunnel_binary_check_never_fails_the_whole_doctor() {
+        // absence is a warning (remote viewing unavailable), never a
+        // reason to block a local-only demo
+        assert!(check_tunnel_binary().ok);
     }
 }

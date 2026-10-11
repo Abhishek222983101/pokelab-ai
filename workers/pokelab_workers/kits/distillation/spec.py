@@ -39,7 +39,9 @@ def _load_mnist_subsample(n_total: int, seed: int):
     # the warm pool's startup handshake stays fast; see arena/spec.py.
     from sklearn.datasets import fetch_openml
 
-    bunch = fetch_openml(data_id=_MNIST_DATA_ID, as_frame=False, parser="liac-arff")
+    from pokelab_workers.kits.data_home import ensure_data_home
+
+    bunch = fetch_openml(data_id=_MNIST_DATA_ID, as_frame=False, parser="liac-arff", data_home=ensure_data_home())
     X = bunch.data.astype("float32") / 255.0
     y = bunch.target.astype("int64")
     rng = np.random.RandomState(seed)

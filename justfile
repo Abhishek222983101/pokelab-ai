@@ -39,7 +39,8 @@ dev:
     cd web && npm run dev
 
 doctor:
-    uv run --project brain python -m pokelab_brain.doctor
+    -cd core && cargo run -p labd -- doctor
+    -cd brain && uv run python -m pokelab_brain.doctor
 
 # --- testing ---
 

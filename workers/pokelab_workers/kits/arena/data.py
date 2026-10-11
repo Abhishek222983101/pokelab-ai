@@ -9,6 +9,8 @@ from __future__ import annotations
 import numpy as np
 from sklearn.datasets import fetch_openml
 
+from pokelab_workers.kits.data_home import ensure_data_home
+
 DATASETS = {
     "magictelescope": 1120,
     "electricity": 151,
@@ -18,7 +20,7 @@ DATASETS = {
 def load_dataset(name: str):
     if name not in DATASETS:
         raise KeyError(f"unknown arena dataset {name!r}; known: {sorted(DATASETS)}")
-    bunch = fetch_openml(data_id=DATASETS[name], as_frame=False, parser="liac-arff")
+    bunch = fetch_openml(data_id=DATASETS[name], as_frame=False, parser="liac-arff", data_home=ensure_data_home())
     X = bunch.data.astype(np.float64)
     y = (bunch.target == np.unique(bunch.target)[0]).astype(int)
     return X, y
