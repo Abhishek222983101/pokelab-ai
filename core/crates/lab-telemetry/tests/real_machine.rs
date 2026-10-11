@@ -2,7 +2,7 @@
 //! Assertions are deliberately loose — the point is "this doesn't crash and
 //! returns something plausible," not "this laptop has exactly X."
 
-use lab_telemetry::{sample_gpu, sample_power, should_warn_power};
+use lab_telemetry::{free_disk_gb, sample_gpu, sample_power, should_warn_power};
 
 #[test]
 fn gpu_sample_is_plausible_if_present() {
@@ -16,6 +16,17 @@ fn gpu_sample_is_plausible_if_present() {
         }
     }
     // else: no nvidia-smi on this box — that's a valid outcome, not a failure
+}
+
+#[test]
+fn free_disk_gb_reports_a_real_plausible_number_for_cwd() {
+    // P12.2 "disk low" chaos drill's underlying primitive: can't safely
+    // fill this machine's real disk just to test the rejection path, so
+    // this proves the NUMBER is real and sane — the comparison that uses
+    // it in lab-gateway's job-submit guard is a one-line `<` on this.
+    let gb = free_disk_gb(".").expect("df should work on a real Linux dev/CI box");
+    assert!(gb > 0.0, "a real machine always has SOME free space");
+    assert!(gb < 100_000.0, "sanity ceiling — a parse bug could return something absurd");
 }
 
 #[test]

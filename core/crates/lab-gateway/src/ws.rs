@@ -287,6 +287,26 @@ async fn handle_job_submit(
         return;
     };
 
+    // §11-nfr "Disk low" row (P12.2 chaos drill "disk low"): refuse NEW
+    // artifacts under 1 GB free rather than let a job start, fail mid-run
+    // writing a checkpoint, and leave a half-written file behind. `None`
+    // (couldn't run `df`) fails open — the normal case, this check
+    // existing at all beats blocking every submission on a shell-out that
+    // might not even be available in some CI sandbox.
+    const MIN_FREE_GB_FOR_NEW_JOB: f64 = 1.0;
+    if let Some(avail_gb) = lab_telemetry::free_disk_gb(".") {
+        if avail_gb < MIN_FREE_GB_FOR_NEW_JOB {
+            let reply = LabdMsg::JobRejected {
+                req,
+                reason: format!(
+                    "disk low: {avail_gb:.1} GiB free, need >= {MIN_FREE_GB_FOR_NEW_JOB} GiB to start a new job (§11-nfr)"
+                ),
+            };
+            send_to_brain(tx_sock, &reply).await;
+            return;
+        }
+    }
+
     let mut pool = pool.lock().await;
     let submission = pool.submit(&kit, config.clone()).await;
     match submission {
