@@ -74,3 +74,7 @@ replay db:
 
 docs:
     bash docs/build_docs.sh
+
+# Demo: restart labd + brain and print the links
+live:
+    bash scripts/live_up.sh
