@@ -8,9 +8,10 @@ import { useLabStore } from "@/lib/store";
 // Phaser needs the DOM/WebGL — never server-rendered.
 const PhaserMount = dynamic(() => import("@/game/PhaserMount").then((m) => m.PhaserMount), { ssr: false });
 
+const BACKEND_HOST = process.env.NEXT_PUBLIC_BACKEND_HOST;
 const WS_URL =
   typeof window !== "undefined"
-    ? `${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.host}/api/ws`
+    ? `${window.location.protocol === "https:" ? "wss" : "ws"}://${BACKEND_HOST ?? window.location.host}/api/ws`
     : "ws://localhost:7700/api/ws";
 
 export default function GamePage() {
