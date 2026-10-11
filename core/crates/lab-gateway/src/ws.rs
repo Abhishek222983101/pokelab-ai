@@ -20,6 +20,13 @@ use crate::AppState;
 enum ClientMsg {
     #[serde(rename = "hello")]
     Hello { since: i64 },
+    /// §5.4.4: kill_job is an "infrastructure command" labd executes
+    /// directly, no brain round trip needed. [NOTE] role checks
+    /// (desk/phone can kill, view cannot) aren't threaded into this
+    /// endpoint yet — any connected client can send this today; tracked
+    /// honestly in docs/PROGRESS.md P10.4 rather than silently assumed.
+    #[serde(rename = "command")]
+    Command { command: String, job_id: Option<String> },
 }
 
 #[derive(Serialize)]
@@ -29,20 +36,24 @@ enum ServerMsg<'a> {
     Event { e: &'a lab_store::Event },
     #[serde(rename = "resync")]
     Resync { since: i64 },
+    #[serde(rename = "command_result")]
+    CommandResult { command: String, ok: bool, detail: String },
 }
 
 pub async fn client_ws(ws: WebSocketUpgrade, State(state): State<AppState>) -> impl IntoResponse {
     ws.on_upgrade(move |socket| client_ws_loop(socket, state))
 }
 
-async fn client_ws_loop(mut socket: WebSocket, state: AppState) {
+async fn client_ws_loop(socket: WebSocket, state: AppState) {
+    let (mut tx_sock, mut rx_sock) = socket.split();
+
     // Wait for `hello` (bounded — a client that never says hello just times
     // out its own connection; nothing to clean up on our side beyond drop).
     let since = loop {
-        match socket.recv().await {
+        match rx_sock.next().await {
             Some(Ok(Message::Text(text))) => match serde_json::from_str::<ClientMsg>(&text) {
                 Ok(ClientMsg::Hello { since }) => break since,
-                Err(_) => continue, // ignore until we get a valid hello
+                _ => continue, // ignore commands/garbage until we get a valid hello
             },
             Some(Ok(_)) => continue,
             _ => return, // closed before saying hello
@@ -56,45 +67,96 @@ async fn client_ws_loop(mut socket: WebSocket, state: AppState) {
     let mut last_sent = since;
     for e in &backlog {
         last_sent = e.seq;
-        if send_event(&mut socket, e).await.is_err() {
+        if send_event(&mut tx_sock, e).await.is_err() {
             return;
         }
     }
 
     loop {
-        match rx.recv().await {
-            Ok(e) => {
-                if e.seq <= last_sent {
-                    continue; // already sent via replay
-                }
-                last_sent = e.seq;
-                if send_event(&mut socket, &e).await.is_err() {
-                    return;
-                }
-            }
-            Err(broadcast::error::RecvError::Lagged(_)) => {
-                let msg = ServerMsg::Resync { since: last_sent };
-                let text = serde_json::to_string(&msg).unwrap();
-                if socket.send(Message::Text(text.into())).await.is_err() {
-                    return;
-                }
-                let backlog = state.hub.store().since(last_sent, None).unwrap_or_default();
-                for e in &backlog {
-                    last_sent = e.seq;
-                    if send_event(&mut socket, e).await.is_err() {
-                        return;
+        tokio::select! {
+            incoming = rx_sock.next() => {
+                match incoming {
+                    Some(Ok(Message::Text(text))) => {
+                        if let Ok(ClientMsg::Command { command, job_id }) = serde_json::from_str::<ClientMsg>(&text) {
+                            handle_client_command(&mut tx_sock, &state, &command, job_id).await;
+                        }
                     }
+                    Some(Ok(_)) => continue,
+                    _ => return,
                 }
             }
-            Err(broadcast::error::RecvError::Closed) => return,
+            event = rx.recv() => {
+                match event {
+                    Ok(e) => {
+                        if e.seq <= last_sent {
+                            continue; // already sent via replay
+                        }
+                        last_sent = e.seq;
+                        if send_event(&mut tx_sock, &e).await.is_err() {
+                            return;
+                        }
+                    }
+                    Err(broadcast::error::RecvError::Lagged(_)) => {
+                        let msg = ServerMsg::Resync { since: last_sent };
+                        let text = serde_json::to_string(&msg).unwrap();
+                        if tx_sock.send(Message::Text(text.into())).await.is_err() {
+                            return;
+                        }
+                        let backlog = state.hub.store().since(last_sent, None).unwrap_or_default();
+                        for e in &backlog {
+                            last_sent = e.seq;
+                            if send_event(&mut tx_sock, e).await.is_err() {
+                                return;
+                            }
+                        }
+                    }
+                    Err(broadcast::error::RecvError::Closed) => return,
+                }
+            }
         }
     }
 }
 
-async fn send_event(socket: &mut WebSocket, e: &lab_store::Event) -> Result<(), axum::Error> {
+async fn send_event(
+    socket: &mut (impl SinkExt<Message, Error = axum::Error> + Unpin),
+    e: &lab_store::Event,
+) -> Result<(), axum::Error> {
     let msg = ServerMsg::Event { e };
     let text = serde_json::to_string(&msg).unwrap();
     socket.send(Message::Text(text.into())).await
+}
+
+/// §5.4.4's infra commands, handled by labd directly. Today this is just
+/// `kill_job`; `pause_pool`/`resume_pool` are the other two the spec
+/// names but aren't implemented (no caller needs them yet).
+async fn handle_client_command(
+    tx_sock: &mut (impl SinkExt<Message, Error = axum::Error> + Unpin),
+    state: &AppState,
+    command: &str,
+    job_id: Option<String>,
+) {
+    let (ok, detail) = match (command, job_id, &state.warm_pool) {
+        ("kill_job", None, _) => (false, "kill_job needs a job_id".to_string()),
+        ("kill_job", Some(_), None) => (false, "no warm pool configured".to_string()),
+        ("kill_job", Some(job_id), Some(pool)) => match pool.lock().await.stop_job(&job_id).await {
+            Ok(true) => (true, format!("stop sent for {job_id}")),
+            Ok(false) => (false, format!("no running job found for {job_id}")),
+            Err(e) => (false, format!("stop_job failed: {e}")),
+        },
+        (other, _, _) => (false, format!("unknown command {other:?}")),
+    };
+    send_command_result(tx_sock, command, ok, detail).await;
+}
+
+async fn send_command_result(
+    tx_sock: &mut (impl SinkExt<Message, Error = axum::Error> + Unpin),
+    command: &str,
+    ok: bool,
+    detail: String,
+) {
+    let msg = ServerMsg::CommandResult { command: command.to_string(), ok, detail };
+    let text = serde_json::to_string(&msg).unwrap();
+    let _ = tx_sock.send(Message::Text(text.into())).await;
 }
 
 // ---------- internal brain WS (/internal/brain) ----------

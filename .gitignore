@@ -27,3 +27,4 @@ assets/vendor/
 # misc
 .DS_Store
 *.log
+contracts/node_modules/

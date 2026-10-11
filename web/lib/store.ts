@@ -16,10 +16,21 @@ export interface JobViewState {
   errorSig: string | null;
 }
 
+export interface AgentViewState {
+  agentId: string;
+  status: "active" | "retired";
+  capabilities: string[];
+  reason: string;
+  spawnedAtSeq: number;
+  retiredAtSeq?: number;
+  recommendations: Array<{ kind: "refine" | "merge"; reason: string; seq: number }>;
+}
+
 interface LabStoreState {
   connectionStatus: "connecting" | "open" | "closed";
   lastSeq: number;
   jobs: Record<string, JobViewState>;
+  agents: Record<string, AgentViewState>;
   recentEvents: LabEvent[]; // most-recent-first, capped
   setConnectionStatus: (s: "connecting" | "open" | "closed") => void;
   applyEvent: (e: LabEvent) => void;
@@ -31,6 +42,7 @@ export const useLabStore = create<LabStoreState>((set) => ({
   connectionStatus: "connecting",
   lastSeq: 0,
   jobs: {},
+  agents: {},
   recentEvents: [],
 
   setConnectionStatus: (s) => set({ connectionStatus: s }),
@@ -67,6 +79,41 @@ export const useLabStore = create<LabStoreState>((set) => ({
             errorSig: (e.payload.error_sig as string | null) ?? null,
           },
         };
+      } else if (e.kind === "agent.spawned") {
+        const agentId = e.payload.agent_id as string;
+        next.agents = {
+          ...next.agents,
+          [agentId]: {
+            agentId,
+            status: "active",
+            capabilities: [e.payload.capability as string],
+            reason: e.payload.reason as string,
+            spawnedAtSeq: e.seq,
+            recommendations: [],
+          },
+        };
+      } else if (e.kind === "agent.retired") {
+        const agentId = e.payload.agent_id as string;
+        const existing = next.agents[agentId];
+        if (existing) {
+          next.agents = {
+            ...next.agents,
+            [agentId]: { ...existing, status: "retired", retiredAtSeq: e.seq, reason: e.payload.reason as string },
+          };
+        }
+      } else if (e.kind === "agent.refine_recommended" || e.kind === "agent.merge_recommended") {
+        const agentId = (e.payload.agent_id as string) ?? (e.payload.parents as string[])?.[0];
+        const existing = next.agents[agentId];
+        if (existing) {
+          const kind = e.kind === "agent.refine_recommended" ? "refine" : "merge";
+          next.agents = {
+            ...next.agents,
+            [agentId]: {
+              ...existing,
+              recommendations: [...existing.recommendations, { kind, reason: e.payload.reason as string, seq: e.seq }],
+            },
+          };
+        }
       }
 
       return next;

@@ -235,6 +235,29 @@ impl WarmPool {
         Ok((job_id, lines))
     }
 
+    /// Sends `{"t":"stop","job_id":...}` to whichever slot is actually
+    /// running this job. Returns `false` if no slot currently routes
+    /// this job_id (already finished, or never existed) — not an error,
+    /// just nothing to do. The worker side applies this via a dedicated
+    /// reader thread so it takes effect immediately, not only between
+    /// jobs (see workers/pokelab_workers/pool_main.py's docstring on the
+    /// bug this fixed).
+    pub async fn stop_job(&mut self, job_id: &str) -> Result<bool> {
+        for slot in &mut self.slots {
+            let has_job = slot.routes.lock().unwrap().contains_key(job_id);
+            if has_job {
+                let line = serde_json::json!({"t": "stop", "job_id": job_id});
+                let mut payload = serde_json::to_string(&line).unwrap();
+                payload.push('\n');
+                if let Some(stdin) = slot.stdin.as_mut() {
+                    stdin.write_all(payload.as_bytes()).await?;
+                }
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    }
+
     pub fn n_slots(&self) -> usize {
         self.slots.len()
     }

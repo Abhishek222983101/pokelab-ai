@@ -1,0 +1,126 @@
+{
+  "$defs": {
+    "Display": {
+      "properties": {
+        "importance": {
+          "default": 0,
+          "title": "Importance",
+          "type": "integer"
+        },
+        "bubble": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Bubble"
+        },
+        "sfx": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sfx"
+        },
+        "spotlight": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Spotlight"
+        }
+      },
+      "title": "Display",
+      "type": "object"
+    }
+  },
+  "description": "What a publisher sends \u2014 everything but `seq`/`ts`, which labd\nassigns on commit.",
+  "properties": {
+    "kind": {
+      "title": "Kind",
+      "type": "string"
+    },
+    "v": {
+      "default": 1,
+      "title": "V",
+      "type": "integer"
+    },
+    "project": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Project"
+    },
+    "actor": {
+      "title": "Actor",
+      "type": "string"
+    },
+    "corr": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Corr"
+    },
+    "causation": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Causation"
+    },
+    "payload": {
+      "additionalProperties": true,
+      "title": "Payload",
+      "type": "object"
+    },
+    "display": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Display"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    }
+  },
+  "required": [
+    "kind",
+    "actor",
+    "payload"
+  ],
+  "title": "NewEvent",
+  "type": "object"
+}

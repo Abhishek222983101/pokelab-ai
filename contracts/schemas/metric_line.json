@@ -1,0 +1,41 @@
+{
+  "properties": {
+    "t": {
+      "const": "metric",
+      "default": "metric",
+      "title": "T",
+      "type": "string"
+    },
+    "job_id": {
+      "title": "Job Id",
+      "type": "string"
+    },
+    "step": {
+      "title": "Step",
+      "type": "integer"
+    },
+    "k": {
+      "title": "K",
+      "type": "string"
+    },
+    "v": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "V"
+    }
+  },
+  "required": [
+    "job_id",
+    "step",
+    "k",
+    "v"
+  ],
+  "title": "MetricLine",
+  "type": "object"
+}

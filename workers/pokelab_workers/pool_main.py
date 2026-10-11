@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import queue
 import threading
 import traceback
 
@@ -71,25 +72,51 @@ def main() -> None:
 
     protocol.emit_ready(torch_available=torch is not None, device=device, pid=os.getpid())
 
+    # [BUG FOUND reasoning through P10.4's kill-job UI, fixed here]: the
+    # old version read stdin and ran jobs on the SAME thread. While
+    # _run_job() was blocked inside a kit's training loop, the process
+    # never returned to `for cmd in read_commands()` — so a `{"t":"stop"}`
+    # line sent mid-job just sat unread in the pipe until the job finished
+    # on its own, making "kill a running job" silently a no-op in
+    # practice. Fixed with a dedicated reader thread: job commands queue
+    # up for the main thread (jobs still run one at a time per slot,
+    # unchanged); stop commands are applied IMMEDIATELY by the reader
+    # thread itself, via a lock-protected dict, regardless of what the
+    # main thread is doing.
     active_stops: dict[str, _ThreadStopToken] = {}
+    stops_lock = threading.Lock()
+    job_queue: queue.Queue = queue.Queue()
 
-    for cmd in protocol.read_commands():
-        t = cmd.get("t")
-        if t == "job":
-            job_id = cmd["job_id"]
-            kit_name = cmd["kit"]
-            config = cmd.get("config", {})
-            stop_token = _ThreadStopToken()
+    def reader_loop() -> None:
+        for cmd in protocol.read_commands():
+            t = cmd.get("t")
+            if t == "job":
+                job_queue.put(cmd)
+            elif t == "stop":
+                job_id = cmd.get("job_id")
+                with stops_lock:
+                    tok = active_stops.get(job_id)
+                if tok is not None:
+                    tok.set()
+            else:
+                protocol.emit_log("-", f"unknown command type {t!r}, ignored")
+        job_queue.put(None)  # stdin closed -> let the main thread exit too
+
+    threading.Thread(target=reader_loop, daemon=True).start()
+
+    while True:
+        cmd = job_queue.get()
+        if cmd is None:
+            break
+        job_id = cmd["job_id"]
+        kit_name = cmd["kit"]
+        config = cmd.get("config", {})
+        stop_token = _ThreadStopToken()
+        with stops_lock:
             active_stops[job_id] = stop_token
-            _run_job(job_id, kit_name, config, stop_token)
+        _run_job(job_id, kit_name, config, stop_token)
+        with stops_lock:
             active_stops.pop(job_id, None)
-        elif t == "stop":
-            job_id = cmd.get("job_id")
-            tok = active_stops.get(job_id)
-            if tok is not None:
-                tok.set()
-        else:
-            protocol.emit_log("-", f"unknown command type {t!r}, ignored")
 
 
 def _run_job(job_id: str, kit_name: str, config: dict, stop_token: _ThreadStopToken) -> None:

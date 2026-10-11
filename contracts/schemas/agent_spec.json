@@ -1,0 +1,64 @@
+{
+  "properties": {
+    "id": {
+      "title": "Id",
+      "type": "string"
+    },
+    "species": {
+      "title": "Species",
+      "type": "string"
+    },
+    "role": {
+      "title": "Role",
+      "type": "string"
+    },
+    "capabilities": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Capabilities",
+      "type": "array"
+    },
+    "prompt_ref": {
+      "title": "Prompt Ref",
+      "type": "string"
+    },
+    "status": {
+      "default": "active",
+      "title": "Status",
+      "type": "string"
+    },
+    "parent_ids": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Parent Ids",
+      "type": "array"
+    },
+    "generation": {
+      "default": 0,
+      "title": "Generation",
+      "type": "integer"
+    },
+    "created_seq": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Created Seq"
+    }
+  },
+  "required": [
+    "id",
+    "species",
+    "role",
+    "prompt_ref"
+  ],
+  "title": "AgentSpec",
+  "type": "object"
+}
