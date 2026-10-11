@@ -77,6 +77,9 @@ export function liveAgents(view: LabView): DemoAgent[] {
         tasks: a.tasksDone,
         cost: 0,
         evolvesTo: next,
+        history: a.history,
+        lineage: a.lineage,
+        capabilities: a.capabilities,
       };
     });
 }
@@ -92,6 +95,11 @@ function speciesOf(view: LabView, agentId: unknown): string {
 
 /** One feed row per meaningful event; per-step metrics are summarised by the Experiments panel instead. */
 export function feedRow(e: LabEvent, view: LabView): DemoEvent | null {
+  const row = feedRowInner(e, view);
+  return row ? { ...row, raw: e } : null;
+}
+
+function feedRowInner(e: LabEvent, view: LabView): DemoEvent | null {
   const p = e.payload;
   const t = e.ts.slice(11, 19);
   const base = { seq: e.seq, t, kind: e.kind };
@@ -103,9 +111,12 @@ export function feedRow(e: LabEvent, view: LabView): DemoEvent | null {
     case 'project.created':
       return { ...base, who: 'oak', text: `New quest: ${str(p.title)}`, why: `Paper pack “${str(p.paper)}” · kit ${str(p.kit)} · ${(p.plan as unknown[] | undefined)?.length ?? 0} plan steps`, tone: 'info' };
     case 'project.rejected':
+      if (p.command === 'reset') return { ...base, who: 'ash', text: str(p.reason), tone: 'info' };
       return { ...base, who: 'oak', text: `Oak declined: “${str(p.text)}”`, why: str(p.reason), tone: 'warn' };
     case 'project.completed':
       return { ...base, who: 'oak', text: `Verdict ${str(p.verdict)} — ${str(p.metric)} ${num(p.value)} vs claim ${num(p.claim)}`, why: `job ${str(p.job_id) || '—'} · report ${str(p.report)}`, tone: p.verdict === 'REPRODUCED' ? 'good' : p.verdict === 'PARTIAL' ? 'warn' : 'bad' };
+    case 'project.abandoned':
+      return { ...base, who: 'oak', text: `Project ${str(p.project_id)} was cut off`, why: str(p.reason), tone: 'warn' };
     case 'project.badge_awarded': {
       const g = gymForKit(str(p.kit));
       return { ...base, who: 'ash', text: g ? `${g.badge} earned at ${g.leader}'s Gym!` : 'Badge earned!', why: `${num(p.value)} ≥ claim ${num(p.claim)} (job ${str(p.job_id)})`, tone: 'good' };
@@ -133,6 +144,16 @@ export function feedRow(e: LabEvent, view: LabView): DemoEvent | null {
     case 'agent.evolved': {
       const ev = (p.evidence as { n?: number; mean_reward?: number } | undefined) ?? {};
       return { ...base, who: str(p.species), text: `${titleCase(str(p.from_species))} evolved into ${titleCase(str(p.species))} (v${num(p.version, 0)})!`, why: `${ev.n} rewarded tasks, mean reward ${num(ev.mean_reward, 2)} · rule: ${str(p.rule)}`, tone: 'good' };
+    }
+    case 'agent.devolved':
+      return { ...base, who: str(p.species), text: `${titleCase(str(p.from_species))} returned to ${titleCase(str(p.species))} (v${num(p.version, 0)})`, why: str(p.reason), tone: 'warn' };
+    case 'paper.ingested':
+      return { ...base, who, text: `${name} opened the paper "${str(p.title)}": ${num(p.n_chunks, 0)} chunks`, why: `source ${str(p.source)}`, tone: 'info' };
+    case 'claim.extracted':
+      return { ...base, who, text: `${name} extracted ${((p.claims as unknown[]) ?? []).length} claim(s); target ${str((p.target as { metric?: string })?.metric)} ≥ ${num((p.target as { value?: number })?.value, 2)}`, tone: 'info' };
+    case 'analysis.computed': {
+      const delay = p.delay_steps as number | null;
+      return { ...base, who, text: delay !== null && delay !== undefined ? `Analysis: train saturated at step ${num(p.train_saturated_step, 0)}, ${str(p.metric)} hit the claim at step ${num(p.claim_hit_step, 0)} — delayed generalisation of ${delay} steps` : `Analysis: ${num(p.points, 0)} points of ${str(p.metric)}`, why: `job ${str(p.job_id)}`, tone: 'good' };
     }
     case 'agent.thought':
       return { ...base, who, text: str(p.text).slice(0, 140), tone: 'info' };
@@ -245,4 +266,11 @@ export function hudStats(view: LabView, tel: Telemetry | null) {
     badges: Object.values(view.projects).filter((p) => p.badge).length,
     agents: Object.values(view.agents).filter((a) => a.status === 'active').length,
   };
+}
+
+/** The project whose paper evidence the PAPER tab shows: the newest one that has any. */
+export function latestPaper(view: LabView) {
+  const ids = Object.keys(view.papers).sort((a, b) => (view.projects[b]?.createdSeq ?? 0) - (view.projects[a]?.createdSeq ?? 0));
+  const id = ids[0];
+  return id ? { paper: view.papers[id], project: view.projects[id] ?? null } : null;
 }

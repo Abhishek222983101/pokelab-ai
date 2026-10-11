@@ -9,21 +9,52 @@ import { ROLES, EEVEE_FORMS } from '@/lib/roster';
 import { useLabConnection } from '@/lib/useLabConnection';
 import { useLabStore } from '@/lib/store';
 import { useReplay } from '@/lib/useReplay';
-import { hudStats, latestCompleted, liveAgents, liveFeed, liveQuests, liveRun, oakLine, type Telemetry } from '@/lib/liveView';
+import { hudStats, latestCompleted, latestPaper, liveAgents, liveFeed, liveQuests, liveRun, oakLine, type Telemetry } from '@/lib/liveView';
 import { labApiUrl } from '@/lib/useLabConnection';
 import { Hud, type Layout } from '../components/lab/Hud';
-import { ActivityPanel, ExperimentsPanel, Inspector, QuestsPanel, ReproPanel, SafariPanel, TeamPanel, labelOf } from '../components/lab/panels';
+import { ActivityPanel, ExperimentsPanel, Inspector, PaperPanel, QuestsPanel, ReproPanel, SafariPanel, TeamPanel, labelOf } from '../components/lab/panels';
 import { Mon } from '../components/Mon';
 import { OakDialog } from '../components/lab/OakDialog';
 import { cx } from '../components/ui';
+import { gymForKit } from '@/lab/gyms';
+import type { LabView } from '@/lib/labReducer';
 
 // Phaser needs the DOM/WebGL — never server-rendered.
 const LabMount = dynamic(() => import('@/game/labroom/LabMount'), { ssr: false });
 
-type Tab = 'quests' | 'team' | 'activity' | 'experiments' | 'safari' | 'repro';
+/** Over-the-room "NOW" card: the running project, who is working on which step, and the live metric vs the paper's claim. */
+function NowCard({ view }: { view: LabView }) {
+  const proj = Object.values(view.projects).filter((p) => p.status === 'running').sort((a, b) => b.createdSeq - a.createdSeq)[0];
+  if (!proj) return null;
+  const done = proj.plan.filter((st) => st.status === 'done').length;
+  const running = proj.plan.find((st) => st.status === 'running');
+  const who = running?.agentId ? view.agents[running.agentId] : null;
+  const job = Object.values(view.jobs).filter((j) => j.status === 'running').sort((a, b) => (Number(b.jobId.replace(/\D/g, '')) || 0) - (Number(a.jobId.replace(/\D/g, '')) || 0))[0];
+  const g = gymForKit(job?.kit);
+  const pts = g && job ? job.metrics[g.metricKey] : undefined;
+  const last = pts && pts.length ? pts[pts.length - 1] : null;
+  const frac = g && last && last[1] !== null ? Math.max(0, Math.min(1, (last[1] - g.floor) / (g.claim - g.floor))) : null;
+  return (
+    <div className="pointer-events-none absolute right-2 top-2 w-[270px] bg-navy-deep/95 p-2 text-cream" style={{ boxShadow: '0 0 0 3px var(--color-gold)' }} aria-live="polite">
+      <p className="font-pixel t-8 m-0 text-yellow">NOW · {proj.title}</p>
+      <p className="m-0 text-[13px]">Step {done + (running ? 1 : 0)}/{proj.plan.length}: {running?.title ?? 'finishing…'}</p>
+      {who && <p className="m-0 text-[13px] text-cream/80">{who.species} ({who.role}) is working</p>}
+      <div className="mt-1 flex gap-[2px]">{proj.plan.map((st) => <i key={st.stepId} className="block h-2 flex-1" style={{ background: st.status === 'done' ? '#58d858' : st.status === 'running' ? '#f8d858' : '#3a4a8a' }} />)}</div>
+      {g && job && last && last[1] !== null && (
+        <div className="mt-2">
+          <p className="m-0 text-[12px]">{job.jobId} · {g.metricKey} <b className="tabular-nums">{last[1].toFixed(3)}</b> → claim {g.claim} · step {last[0]}</p>
+          <div className="bar mt-1"><i style={{ width: `${(frac ?? 0) * 100}%`, ['--bar' as string]: '#58d858' }} /></div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+type Tab = 'quests' | 'paper' | 'team' | 'activity' | 'experiments' | 'safari' | 'repro';
 const TABS: Array<{ id: Tab; label: string }> = [
   { id: 'team', label: 'TEAM' },
   { id: 'quests', label: 'QUESTS' },
+  { id: 'paper', label: 'PAPER' },
   { id: 'activity', label: 'ACTIVITY' },
   { id: 'experiments', label: 'EXPERIMENTS' },
   { id: 'safari', label: 'SAFARI' },
@@ -46,6 +77,7 @@ function Desk() {
   const feed = useMemo(() => (live ? liveFeed(view) : rp.feed), [live, view, rp.feed]);
   const quests = useMemo(() => (live ? liveQuests(view) : undefined), [live, view]);
   const run = useMemo(() => (live ? liveRun(view) : undefined), [live, view]);
+  const paperView = useMemo(() => (live ? latestPaper(view) : null), [live, view]);
   const done = useMemo(() => (live ? latestCompleted(view) : undefined), [live, view]);
   const oakSay = live ? oakLine(view) : rp.oakSay;
   const { approved, approveSpawn, rejectSpawn } = rp;
@@ -136,6 +168,7 @@ function Desk() {
               <div className="pointer-events-none absolute left-2 top-2 flex items-center gap-2">
                 <span className="chip chip-plain">Shift+E · event ids</span>
               </div>
+              {live && <NowCard view={view} />}
             </div>
             <div className="w-full flex-none px-2 pb-1" style={{ height: 120 }}>
               <OakDialog text={oakSay} />
@@ -158,9 +191,13 @@ function Desk() {
                   {sel && tab === 'team' && (
                     <div className="mb-3"><Inspector agent={sel} approved={approved} onClose={() => setSelected(null)} onApprove={() => { audio.sfx('levelup'); approveSpawn(); }} onReject={rejectSpawn} onFeedback={live ? (v) => feedback(sel.id, v) : undefined} /></div>
                   )}
+                  {tab === 'team' && live && (
+                    <div className="mb-2 flex justify-end"><button type="button" className="chip chip-plain cursor-pointer" title="Returns every evolved agent to its base species (agent.devolved events); rewards history is kept" onClick={() => sendAsk('reset team')}>↺ DE-EVOLVE TEAM (demo reset)</button></div>
+                  )}
                   {tab === 'team' && <TeamPanel agents={agents} selected={selected} onSelect={select} />}
                   {tab === 'quests' && <QuestsPanel quests={quests} />}
-                  {tab === 'activity' && <ActivityPanel feed={feed} onFocus={focusWho} />}
+                  {tab === 'paper' && <PaperPanel paper={paperView?.paper ?? null} project={paperView?.project ?? null} />}
+                  {tab === 'activity' && <ActivityPanel feed={feed} onFocus={focusWho} events={live ? view.recentEvents : []} />}
                   {tab === 'experiments' && <ExperimentsPanel run={run} jobs={live ? Object.values(view.jobs) : undefined} />}
                   {tab === 'safari' && <SafariPanel live={live} />}
                   {tab === 'repro' && <ReproPanel project={done} />}

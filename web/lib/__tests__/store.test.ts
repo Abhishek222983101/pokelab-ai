@@ -1,3 +1,4 @@
+import { MAX_RECENT_EVENTS } from "../labReducer";
 import { describe, expect, it, beforeEach } from "vitest";
 import { useLabStore } from "../store";
 import type { LabEvent } from "../labSocket";
@@ -50,14 +51,14 @@ describe("useLabStore", () => {
     expect(useLabStore.getState().lastSeq).toBe(5);
   });
 
-  it("caps recentEvents at 200 and keeps most-recent-first", () => {
+  it("caps recentEvents at MAX_RECENT_EVENTS and keeps most-recent-first", () => {
     const { applyEvent } = useLabStore.getState();
-    for (let i = 1; i <= 210; i++) {
+    for (let i = 1; i <= MAX_RECENT_EVENTS + 10; i++) {
       applyEvent(metricEvent(i, "job-1", i, "loss", 1 / i));
     }
     const recent = useLabStore.getState().recentEvents;
-    expect(recent.length).toBe(200);
-    expect(recent[0].seq).toBe(210);
+    expect(recent.length).toBe(MAX_RECENT_EVENTS);
+    expect(recent[0].seq).toBe(MAX_RECENT_EVENTS + 10);
   });
 });
 

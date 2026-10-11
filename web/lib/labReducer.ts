@@ -8,6 +8,7 @@ import type { LabEvent } from "./labSocket";
 export interface JobViewState {
   jobId: string;
   kit?: string;
+  config?: Record<string, unknown>;
   project?: string | null;
   status: "running" | "ok" | "error" | "stopped" | "timeout";
   metrics: Record<string, Array<[number, number | null]>>;
@@ -22,6 +23,32 @@ export interface CurrentTask {
   projectId: string | null;
   kit: string | null;
   seq: number;
+}
+
+/** One unit of an agent's work, folded from events: the agent's real, queryable "context". */
+export interface HistoryEntry {
+  seq: number;
+  ts: string;
+  projectId: string | null;
+  stepId: string;
+  capability: string;
+  title: string;
+  kit: string | null;
+  status: "running" | "done" | "failed";
+  thoughts: string[];
+  jobId: string | null;
+  reward: number | null;
+}
+
+export interface PaperView {
+  projectId: string;
+  title: string;
+  source: string;
+  nChunks: number;
+  chunks: Array<{ id: string; text: string }>;
+  claims: Array<{ metric: string; value: number; condition?: string; source?: string }>;
+  target: { metric: string; value: number } | null;
+  analysis: { jobId: string; metric: string; claim: number; points: number; claimHitStep: number | null; trainSaturatedStep: number | null; delaySteps: number | null } | null;
 }
 
 export interface AgentViewState {
@@ -41,6 +68,10 @@ export interface AgentViewState {
   tasksDone: number;
   lastReward: number | null;
   posteriorMean: number | null;
+  /** Newest first, capped. */
+  history: HistoryEntry[];
+  /** Evolution / de-evolution milestones (agent.evolved / agent.devolved). */
+  lineage: Array<{ seq: number; kind: "evolved" | "devolved"; from: string; to: string; version: number; note: string }>;
 }
 
 export interface PlanStepView {
@@ -58,7 +89,7 @@ export interface ProjectViewState {
   paper: string | null;
   kit: string | null;
   text: string;
-  status: "running" | "completed";
+  status: "running" | "completed" | "abandoned";
   plan: PlanStepView[];
   claim: { metric: string; value: number } | null;
   verdict: string | null;
@@ -73,15 +104,17 @@ export interface LabView {
   jobs: Record<string, JobViewState>;
   agents: Record<string, AgentViewState>;
   projects: Record<string, ProjectViewState>;
+  papers: Record<string, PaperView>;
   /** Requests Oak declined, with its reason (shown, never silently dropped). */
   rejected: Array<{ seq: number; text: string; reason: string }>;
   recentEvents: LabEvent[]; // most-recent-first, capped
 }
 
-export const MAX_RECENT_EVENTS = 200;
+export const MAX_RECENT_EVENTS = 400;
+const MAX_HISTORY = 40;
 
 export const emptyLabView = (): LabView => ({
-  lastSeq: 0, jobs: {}, agents: {}, projects: {}, rejected: [], recentEvents: [],
+  lastSeq: 0, jobs: {}, agents: {}, projects: {}, papers: {}, rejected: [], recentEvents: [],
 });
 
 const s = (v: unknown, fallback = ""): string => (typeof v === "string" ? v : fallback);
@@ -115,7 +148,7 @@ export function reduce(prev: LabView, e: LabEvent): LabView {
   switch (e.kind) {
     case "job.started": {
       const id = s(p.job_id);
-      view = { ...view, jobs: { ...view.jobs, [id]: { ...job(view, e, id), kit: s(p.kit) } } };
+      view = { ...view, jobs: { ...view.jobs, [id]: { ...job(view, e, id), kit: s(p.kit), config: (p.config as Record<string, unknown>) ?? undefined } } };
       break;
     }
     case "job.metric": {
@@ -164,6 +197,8 @@ export function reduce(prev: LabView, e: LabEvent): LabView {
             tasksDone: 0,
             lastReward: null,
             posteriorMean: null,
+            history: [],
+            lineage: [],
           },
         },
       };
@@ -185,7 +220,63 @@ export function reduce(prev: LabView, e: LabEvent): LabView {
         ...a,
         currentTask: { stepId, capability: s(p.capability), title: s(p.title), projectId: (p.project_id as string) ?? null, kit: (p.kit as string) ?? null, seq: e.seq },
       }));
+      view = patchAgent(view, id, (a) => ({
+        ...a,
+        history: [{
+          seq: e.seq, ts: e.ts, projectId: (p.project_id as string) ?? null, stepId, capability: s(p.capability), title: s(p.title),
+          kit: (p.kit as string) ?? null, status: "running" as const, thoughts: [], jobId: null, reward: null,
+        }, ...a.history].slice(0, MAX_HISTORY),
+      }));
       view = patchStep(view, p.project_id, stepId, (st) => ({ ...st, status: "running", agentId: id }));
+      break;
+    }
+    case "agent.thought": {
+      const id = s(p.agent_id), stepId = s(p.step_id), text = s(p.text);
+      view = patchAgent(view, id, (a) => ({
+        ...a,
+        history: a.history.map((h, i) => (i === a.history.findIndex((x) => x.stepId === stepId && x.projectId === ((p.project_id as string) ?? null)) ? { ...h, thoughts: [...h.thoughts, text] } : h)),
+      }));
+      break;
+    }
+    case "agent.evolved":
+    case "agent.devolved": {
+      const evolved = e.kind === "agent.evolved";
+      const note = evolved ? s(p.rule) : s(p.reason);
+      view = patchAgent(view, s(p.agent_id), (a) => ({
+        ...a,
+        species: s(p.species, a.species),
+        version: n(p.version) ?? a.version,
+        lineage: [{ seq: e.seq, kind: evolved ? ("evolved" as const) : ("devolved" as const), from: s(p.from_species), to: s(p.species), version: n(p.version) ?? a.version, note }, ...a.lineage],
+      }));
+      break;
+    }
+    case "paper.ingested": {
+      const pid = s(p.project_id);
+      const prev = view.papers[pid];
+      view = { ...view, papers: { ...view.papers, [pid]: {
+        projectId: pid, title: s(p.title), source: s(p.source), nChunks: n(p.n_chunks) ?? 0,
+        chunks: ((p.chunks as Array<{ id: string; text: string }>) ?? []).map((c) => ({ id: s(c.id), text: s(c.text) })),
+        claims: prev?.claims ?? [], target: prev?.target ?? null, analysis: prev?.analysis ?? null,
+      } } };
+      break;
+    }
+    case "claim.extracted": {
+      const pid = s(p.project_id);
+      const prev = view.papers[pid] ?? { projectId: pid, title: s(p.title), source: "", nChunks: 0, chunks: [], claims: [], target: null, analysis: null };
+      view = { ...view, papers: { ...view.papers, [pid]: {
+        ...prev,
+        claims: ((p.claims as Array<Record<string, unknown>>) ?? []).map((c) => ({ metric: s(c.metric), value: Number(c.value), condition: s(c.condition), source: s(c.source) })),
+        target: (p.target as { metric: string; value: number }) ?? null,
+      } } };
+      break;
+    }
+    case "analysis.computed": {
+      const pid = s(p.project_id);
+      const prev = view.papers[pid];
+      if (prev) view = { ...view, papers: { ...view.papers, [pid]: { ...prev, analysis: {
+        jobId: s(p.job_id), metric: s(p.metric), claim: Number(p.claim), points: n(p.points) ?? 0,
+        claimHitStep: n(p.claim_hit_step), trainSaturatedStep: n(p.train_saturated_step), delaySteps: n(p.delay_steps),
+      } } } };
       break;
     }
     case "agent.task_finished":
@@ -196,16 +287,20 @@ export function reduce(prev: LabView, e: LabEvent): LabView {
         currentTask: a.currentTask?.stepId === stepId ? null : a.currentTask,
         lastOutcome: { ok, stepId, seq: e.seq },
         tasksDone: a.tasksDone + (ok ? 1 : 0),
+        history: a.history.map((h, i) => (i === a.history.findIndex((x) => x.stepId === stepId && x.status === "running")
+          ? { ...h, status: ok ? ("done" as const) : ("failed" as const), jobId: (p.job_id as string) ?? h.jobId } : h)),
       }));
       view = patchStep(view, p.project_id, stepId, (st) => ({ ...st, status: ok ? "done" : "failed" }));
       break;
     }
-    case "agent.evolved":
-      view = patchAgent(view, s(p.agent_id), (a) => ({ ...a, species: s(p.species, a.species), version: n(p.version) ?? a.version + 1 }));
+    case "agent.rewarded": {
+      const stepId = s(p.step_id);
+      view = patchAgent(view, s(p.agent_id), (a) => ({
+        ...a, lastReward: n(p.reward), posteriorMean: n(p.posterior_mean) ?? a.posteriorMean,
+        history: a.history.map((h, i) => (i === a.history.findIndex((x) => x.stepId === stepId && x.reward === null) ? { ...h, reward: n(p.reward) } : h)),
+      }));
       break;
-    case "agent.rewarded":
-      view = patchAgent(view, s(p.agent_id), (a) => ({ ...a, lastReward: n(p.reward), posteriorMean: n(p.posterior_mean) ?? a.posteriorMean }));
-      break;
+    }
     case "project.created": {
       const id = s(p.project_id);
       const plan = ((p.plan as Array<Record<string, unknown>>) ?? []).map((st) => ({
@@ -234,6 +329,11 @@ export function reduce(prev: LabView, e: LabEvent): LabView {
           projects: { ...view.projects, [pr.projectId]: { ...pr, status: "completed", verdict: s(p.verdict) || null, value: n(p.value), jobId: (p.job_id as string) ?? null } },
         };
       }
+      break;
+    }
+    case "project.abandoned": {
+      const pr = view.projects[s(p.project_id)];
+      if (pr) view = { ...view, projects: { ...view.projects, [pr.projectId]: { ...pr, status: "abandoned", verdict: "INTERRUPTED" } } };
       break;
     }
     case "project.badge_awarded": {

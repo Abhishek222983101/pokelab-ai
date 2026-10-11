@@ -5,7 +5,7 @@ import type { AgentViewState, CurrentTask } from "@/lib/labReducer";
 const agent = (id: string, task: Partial<CurrentTask> | null = null, status: "active" | "retired" = "active"): AgentViewState => ({
   agentId: id, species: id, role: "r", version: 1, status, capabilities: [], reason: "", spawnedAtSeq: 1, recommendations: [],
   currentTask: task ? { stepId: "s", capability: "", title: "", projectId: null, kit: null, seq: 2, ...task } : null,
-  lastOutcome: null, tasksDone: 0, lastReward: null, posteriorMean: null,
+  lastOutcome: null, tasksDone: 0, lastReward: null, posteriorMean: null, history: [], lineage: [],
 });
 
 describe("placeAgents (§9.4.2)", () => {

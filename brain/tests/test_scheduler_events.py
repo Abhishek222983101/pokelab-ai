@@ -76,3 +76,54 @@ def test_promotion_rule_evolves_only_with_enough_high_rewards():
     asyncio.run(OakRuntime(bus, st).maybe_evolve())
     evolved = [(e["payload"]["agent_id"], e["payload"]["species"], e["payload"]["version"]) for e in bus.sent if e["kind"] == "agent.evolved"]
     assert evolved == [("charmander", "charmeleon", 2)]  # zubat: too few rewards, squirtle: mean too low
+
+
+def test_reset_team_devolves_evolved_agents_and_restarts_the_counter():
+    import asyncio
+    from pokelab_brain.oak.runtime import OakRuntime
+    from pokelab_brain.state import StateProjection
+
+    class FakeBus:
+        def __init__(self): self.sent = []
+        async def publish(self, events, req): self.sent.extend(events)
+
+    st = StateProjection()
+    st.agents = {"pikachu": {"species": "raichu", "version": 3, "status": "active"},
+                 "abra": {"species": "abra", "version": 1, "status": "active"}}
+    st.rewards = [("pikachu", 1.0)] * 20
+    bus = FakeBus()
+    asyncio.run(OakRuntime(bus, st).reset_team(5))
+    kinds = [e["kind"] for e in bus.sent]
+    assert kinds == ["agent.devolved", "project.rejected"]
+    d = bus.sent[0]["payload"]
+    assert (d["agent_id"], d["species"], d["version"]) == ("pikachu", "pikachu", 2)
+    # once the event is folded, the evolution counter restarts from the current reward count
+    from pokelab_brain.bus import Event
+    st._on_agent_devolved(Event(seq=9, ts="", kind="agent.devolved", v=1, project=None, actor="oak", corr=None, causation=None, payload=d, display=None))
+    assert st.agents["pikachu"]["species"] == "pikachu" and st.agents["pikachu"]["evolved_at_rewards"] == 20
+
+
+def test_a_project_left_running_by_a_restart_is_closed_not_left_as_a_ghost():
+    import asyncio
+    from pokelab_brain.oak.runtime import OakRuntime
+    from pokelab_brain.state import StateProjection
+    import pokelab_brain.oak.runtime as rt
+
+    class FakeBus:
+        def __init__(self): self.sent = []
+        async def publish(self, events, req): self.sent.extend(events)
+
+    st = StateProjection()
+    st.agents = {"pikachu": {"species": "pikachu", "version": 2, "status": "active"}}  # team exists: no seeding
+    st.projects = {"p-old": {"project_id": "p-old", "status": "running"}, "p-done": {"project_id": "p-done", "status": "completed"}}
+    bus = FakeBus()
+    oak = OakRuntime(bus, st)
+    oak.last_event_at = -1e9  # the replay burst has settled
+
+    async def go():
+        t = asyncio.create_task(oak.run_forever())
+        await asyncio.sleep(0.8)
+        t.cancel()
+    asyncio.run(go())
+    ab = [e["payload"]["project_id"] for e in bus.sent if e["kind"] == "project.abandoned"]
+    assert ab == ["p-old"]

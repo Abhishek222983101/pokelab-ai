@@ -75,6 +75,13 @@ class StateProjection:
             a["version"] = e.payload["version"]
             a["evolved_at_rewards"] = int(e.payload["evidence"]["n"]) + int(a.get("evolved_at_rewards", 0))
 
+    def _on_agent_devolved(self, e: Event) -> None:
+        a = self.agents.get(e.payload["agent_id"])
+        if a is not None:
+            a["species"] = e.payload["species"]
+            a["version"] = e.payload["version"]
+            a["evolved_at_rewards"] = len([1 for who, _ in self.rewards if who == e.payload["agent_id"]])
+
     def _on_project_requested(self, e: Event) -> None:
         self.requests[e.seq] = e.payload.get("text", "")
 
@@ -86,6 +93,11 @@ class StateProjection:
     def _on_project_rejected(self, e: Event) -> None:
         if (req := e.payload.get("request_seq")) is not None:
             self.handled_requests.add(int(req))
+
+    def _on_project_abandoned(self, e: Event) -> None:
+        proj = self.projects.get(e.payload["project_id"])
+        if proj is not None:
+            proj["status"] = "abandoned"
 
     def _on_project_completed(self, e: Event) -> None:
         proj = self.projects.setdefault(e.payload["project_id"], {"project_id": e.payload["project_id"]})

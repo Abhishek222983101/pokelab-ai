@@ -127,6 +127,9 @@ async def run_plan(
                 tool_result = await _trivial_executor(step, step_config)
             job_status = tool_result.get("status")
             final = tool_result.get("final") or {}
+            if emit is not None:
+                for kind, payload in tool_result.get("events", []):  # evidence events (paper chunks, claims, analysis)
+                    await emit(kind, {**base, **payload})
             if emit is not None and narrate is not None and (line := narrate(step, step_config, tool_result)):
                 await emit("agent.thought", {**base, "text": line, "phase": "end"})
             # presentation pacing only (POKELAB_STEP_DWELL_S): real work counts toward the dwell, so a

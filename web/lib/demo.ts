@@ -4,6 +4,8 @@
  * numbers may appear on a slide: only `[MEASURED]` values from var/reports/*.json may (§1 rule 3).
  */
 import type { Elem } from '@/app/components/ui';
+import type { HistoryEntry, AgentViewState } from './labReducer';
+import type { LabEvent } from './labSocket';
 
 export type AgentStatus = 'idle' | 'working' | 'thinking' | 'error' | 'asleep';
 export type Station = 'library_desk' | 'code_bench' | 'server_rack' | 'quest_board' | 'arena_door' | 'analysis_table' | 'scribe_desk' | 'lawn' | 'door';
@@ -25,6 +27,10 @@ export interface DemoAgent {
   tasks: number;
   cost: number; // GPU-seconds
   evolvesTo?: string;
+  /** LIVE only: the agent's real work log + lineage, folded from events. */
+  history?: HistoryEntry[];
+  lineage?: AgentViewState['lineage'];
+  capabilities?: string[];
 }
 
 export const DEMO_AGENTS: DemoAgent[] = [
@@ -48,7 +54,7 @@ export const DEMO_AGENTS: DemoAgent[] = [
     task: 'Proposed: “Fourier-analysis” specialist (skill gap detected)', thought: 'Waiting for approval from the researcher.', tasks: 0, cost: 0 },
 ];
 
-export interface DemoEvent { seq: number; t: string; kind: string; who: string; text: string; why?: string; tone?: 'good' | 'bad' | 'warn' | 'info' }
+export interface DemoEvent { seq: number; t: string; kind: string; who: string; text: string; why?: string; tone?: 'good' | 'bad' | 'warn' | 'info'; /** LIVE only: the logged event this row cites (shown as proof). */ raw?: LabEvent }
 
 export const DEMO_FEED: DemoEvent[] = [
   { seq: 1042, t: '12:04:18', kind: 'agent.spawn_proposed', who: 'eevee', text: 'A wild Eevee appeared — skill gap: fourier_analysis', why: 'Scout coverage 0.34 < 0.60 for capability “fourier_analysis”', tone: 'warn' },

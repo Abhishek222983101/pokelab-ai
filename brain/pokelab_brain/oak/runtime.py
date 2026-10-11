@@ -65,7 +65,7 @@ LINES: dict[str, list[str]] = {
 }
 # Promotion rule (rule-based; the designed shadow-evaluation gate is NOT implemented): an agent evolves once
 # it has EVOLVE_MIN_REWARDS rewarded tasks since it last evolved with a mean reward >= EVOLVE_MIN_MEAN.
-EVOLVE_MIN_REWARDS = 8
+EVOLVE_MIN_REWARDS = int(os.environ.get("POKELAB_EVOLVE_MIN_REWARDS", "8"))  # shown in every agent.evolved event
 EVOLVE_MIN_MEAN = 0.90
 
 IDLE_BEFORE_ACTING_S = 0.6  # wait for the replay burst to settle before acting on "pending" work
@@ -128,6 +128,11 @@ class OakRuntime:
                 continue
             if not team_checked:
                 await self.ensure_team()
+                # a project still "running" at boot was cut off by a restart: close it explicitly instead of
+                # leaving a ghost quest that never finishes
+                for pid, proj in list(self.state.projects.items()):
+                    if proj.get("status") == "running":
+                        await self.publish("project.abandoned", {"project_id": pid, "reason": "the brain restarted before this project finished"}, project=pid)
                 team_checked = True
                 continue
             pending = self.state.pending_requests()
@@ -164,7 +169,26 @@ class OakRuntime:
             })
 
     # ------------------------------------------------------------------ one project
+    async def reset_team(self, seq: int) -> None:
+        """Demo reset: every evolved agent returns to its base species/version (an agent.devolved event
+        each, with the reason) and its evolution counter restarts from its current reward count."""
+        base = {m["agent_id"]: m for m in BASE_TEAM}
+        n = 0
+        for aid, a in list(self.state.agents.items()):
+            b = base.get(aid)
+            if b is None or (a.get("species") == b["species"] and int(a.get("version", 1)) == b["version"]):
+                continue
+            await self.publish("agent.devolved", {
+                "agent_id": aid, "from_species": a.get("species"), "species": b["species"], "version": b["version"],
+                "reason": "demo reset requested by the researcher (rewards history is kept)",
+            })
+            n += 1
+        await self.publish("project.rejected", {"request_seq": seq, "text": "reset team", "command": "reset", "reason": f"team reset: {n} agent(s) returned to their base species"})
+
     async def handle_request(self, seq: int, text: str) -> None:
+        if any(w in text.lower() for w in ("reset team", "de-evolve", "devolve")):
+            await self.reset_team(seq)
+            return
         paper = paper_for(text)
         if paper is None and self.router is not None:
             from pokelab_brain.oak.intake import intake
