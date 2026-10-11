@@ -8,6 +8,7 @@ score it. On failure: retry <= 2 (re-selection allowed), then escalate.
 from __future__ import annotations
 
 import asyncio
+import time
 from dataclasses import dataclass, field
 from typing import Any, Callable, Awaitable
 
@@ -69,6 +70,8 @@ async def run_plan(
     emit: EmitFn | None = None,
     project_id: str | None = None,
     executors: dict[str, StepExecutor] | None = None,
+    narrate: Callable[[PlanStep, dict[str, Any], dict[str, Any] | None], str | None] | None = None,
+    dwell_s: float = 0.0,
 ) -> SchedulerResult:
     """`on_capability_gap` and `on_task_outcome` are the live lifecycle
     loop's hooks (§6.1: evaluated "after each reward"). Passing neither
@@ -109,6 +112,10 @@ async def run_plan(
                     "candidates": [{"agent_id": c, "posterior_mean": round(selector.mean_estimate(c), 4)} for c in candidates],
                 })
 
+            t0 = time.monotonic()
+            if emit is not None and narrate is not None and (line := narrate(step, step_config, None)):
+                await emit("agent.thought", {**base, "text": line, "phase": "start"})
+
             executor = (executors or {}).get(step.cap)
             if executor is not None:
                 # a real per-capability executor (oak/executors.py): it returns its own context —
@@ -120,6 +127,12 @@ async def run_plan(
                 tool_result = await _trivial_executor(step, step_config)
             job_status = tool_result.get("status")
             final = tool_result.get("final") or {}
+            if emit is not None and narrate is not None and (line := narrate(step, step_config, tool_result)):
+                await emit("agent.thought", {**base, "text": line, "phase": "end"})
+            # presentation pacing only (POKELAB_STEP_DWELL_S): real work counts toward the dwell, so a
+            # 100 ms step stays on screen long enough for a human to see the agent at its station
+            if dwell_s > 0:
+                await asyncio.sleep(max(0.0, dwell_s - (time.monotonic() - t0)))
 
             context = {
                 "jobs": {step.id: {"status": job_status}, **tool_result.get("jobs", {})},

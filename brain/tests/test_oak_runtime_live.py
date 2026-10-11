@@ -4,6 +4,8 @@ seeds the team, plans, runs every step through real executors (a real smoke job,
 job), judges the real number against the curated claim and awards the badge. Every link the game
 binds to is checked as an event on the log.
 """
+import os
+os.environ.setdefault("POKELAB_STEP_DWELL_S", "0")
 import asyncio
 import json
 import os

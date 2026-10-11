@@ -266,7 +266,13 @@ async fn brain_ws_loop(socket: WebSocket, state: AppState) {
     loop {
         tokio::select! {
             incoming = rx_sock.next() => {
-                let Some(Ok(Message::Text(text))) = incoming else { return };
+                // Only a real close/error ends the session. Ping/Pong/Binary frames (the Python
+                // client sends a keep-alive ping every ~20 s) must be ignored, not treated as a hang-up.
+                let text = match incoming {
+                    Some(Ok(Message::Text(text))) => text,
+                    Some(Ok(Message::Close(_))) | Some(Err(_)) | None => return,
+                    Some(Ok(_)) => continue,
+                };
                 let Ok(cmd) = serde_json::from_str::<BrainMsg>(&text) else {
                     tracing::warn!(line = %text, "brain sent an unparseable message");
                     continue;

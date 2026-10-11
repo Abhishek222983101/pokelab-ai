@@ -131,6 +131,58 @@ class ProjectRun:
         return {"status": "ok", "report_text": text, "artifacts": {"report": str(self.workdir / "report.md")}}
 
 
+def _fmt(v: Any) -> str:
+    return f"{v:.3f}" if isinstance(v, float) else str(v)
+
+
+def narrate_step(run: "ProjectRun", step: PlanStep, cfg: dict[str, Any], result: dict[str, Any] | None) -> str | None:
+    """What the agent is doing / just found, in words, built ONLY from the real plan and results
+    (no model-written text): shown as the agent's speech bubble and the Activity feed."""
+    prof = run.profile
+    cap = step.cap
+    final = (result or {}).get("final") or {}
+    if result is None:
+        if cap == "paper_read":
+            return f"Opening the {prof.paper} paper and splitting it into chunks"
+        if cap == "spec_extract":
+            return "Pulling the paper's headline claim out of the chunks"
+        if cap == "implement":
+            return f"Checking kit '{prof.kit}' exists in the worker registry"
+        if cap == "env_setup":
+            return "Sending a 50-step smoke job to the warm GPU workers"
+        if cap == "run_experiment":
+            c = prof.full if "full" in step.title.lower() else prof.smoke
+            return f"Submitting a {prof.kit} job: " + ", ".join(f"{k}={v}" for k, v in list(c.items())[:5])
+        if cap == "analyze":
+            return "Reading the full run's final metrics"
+        if cap == "repro_compare":
+            return f"Comparing {prof.final_key} against the paper's {prof.claim}"
+        if cap == "report_write":
+            return "Writing the report from the measured numbers"
+        return step.title
+    if cap == "paper_read":
+        return f"Read {final.get('chunks')} chunks from {final.get('source')}"
+    if cap == "spec_extract":
+        return f"Extracted {final.get('claims')} claim(s); target {prof.final_key} >= {prof.claim}"
+    if cap == "implement":
+        return f"Kit '{prof.kit}' validated against the registry"
+    if cap == "env_setup":
+        return f"Smoke job {result.get('job_id')} finished: {result.get('status')}"
+    if cap == "run_experiment":
+        key = prof.final_key
+        extra = f" at step {final.get('steps_run')}" if final.get("steps_run") else ""
+        got = f", {key} = {_fmt(final[key])}{extra}" if key in final else ""
+        return f"Job {result.get('job_id')} {result.get('status')}{got}"
+    if cap == "analyze":
+        bits = [f"{k}={_fmt(v)}" for k, v in final.items() if isinstance(v, (int, float)) and k in (prof.final_key, "train_acc", "steps_run", "wall_s")]
+        return "Final metrics: " + ", ".join(bits)
+    if cap == "repro_compare":
+        return f"Verdict {final.get('verdict')}: {_fmt(final.get('value'))} vs claim {final.get('claim')}"
+    if cap == "report_write":
+        return "Report written to var/projects/" + run.project_id + "/report.md"
+    return None
+
+
 def specialize_checks(steps: list[PlanStep], profile: KitProfile) -> list[PlanStep]:
     """The shipped reproduce template names grokking's metrics; point its checks at this paper's real
     result key and claim (what the LLM plan adaptation does when available, done deterministically)."""

@@ -34,9 +34,10 @@ function statusOf(a: AgentViewState, view: LabView): AgentStatus {
   return 'asleep';
 }
 
-/** The agent's latest real words: an agent.thought event, else its current task title. */
+/** The agent's latest real words: its newest agent.thought emitted since its current task started. */
 function thoughtOf(a: AgentViewState, view: LabView): string {
-  const t = view.recentEvents.find((e) => e.kind === 'agent.thought' && e.payload.agent_id === a.agentId);
+  if (!a.currentTask) return '';
+  const t = view.recentEvents.find((e) => e.kind === 'agent.thought' && e.payload.agent_id === a.agentId && e.seq >= a.currentTask!.seq);
   const text = typeof t?.payload.text === 'string' ? t.payload.text : '';
   return text.slice(0, 140);
 }
