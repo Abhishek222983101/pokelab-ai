@@ -1,16 +1,10 @@
 "use client";
 
-import dynamic from "next/dynamic";
-import { useLabConnection } from "@/lib/useLabConnection";
+import { useEffect } from "react";
 
-// Phaser needs the DOM/WebGL — never server-rendered.
-const PhaserMount = dynamic(() => import("@/game/PhaserMount"), { ssr: false });
-
+// The standalone Region/Gym scenes are not built yet; the Lab desk (/lab) is the working game view
+// (live room + agents + console), so /game forwards there instead of showing an unfinished scene.
 export default function GamePage() {
-  useLabConnection();
-  return (
-    <main className="fixed inset-0 overflow-hidden bg-navy-deep">
-      <PhaserMount marketId="aapl" speciesId="aapl" wallet="" onExit={() => {}} />
-    </main>
-  );
+  useEffect(() => { window.location.replace("/lab/?layout=game"); }, []);
+  return <main className="fixed inset-0 bg-navy-deep" />;
 }
