@@ -110,6 +110,7 @@ function Desk() {
   }, []);
 
   useEffect(() => { if (params.get('mode') === 'replay') setLayout('split'); }, [params]);
+  useEffect(() => { if (params.get('layout') === 'game') setLayout('game'); }, [params]);
 
   const sceneAgents = useMemo<SceneAgent[]>(
     () => agents.map((a) => ({ id: a.id, species: a.name, label: labelOf(a), status: a.status, station: a.station, thought: a.thought })),
