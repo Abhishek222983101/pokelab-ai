@@ -35,6 +35,14 @@ class StateProjection:
     # tools that submit a job and need to wait for it (agents/tools/jobs.py)
     # await this instead of polling `jobs[job_id].status` in a loop.
     _job_done_events: dict[str, asyncio.Event] = field(default_factory=dict)
+    # the team, as the event log says it is (agent.spawned / agent.retired)
+    agents: dict[str, dict[str, Any]] = field(default_factory=dict)
+    # every agent.rewarded, in order — the Selector's posteriors are rebuilt from these on restart
+    rewards: list[tuple[str, float]] = field(default_factory=list)
+    # project.requested seq -> text; a request is "pending" until a project.created cites its seq
+    requests: dict[int, str] = field(default_factory=dict)
+    projects: dict[str, dict[str, Any]] = field(default_factory=dict)
+    handled_requests: set[int] = field(default_factory=set)
 
     def apply(self, e: Event) -> None:
         self.last_seq = max(self.last_seq, e.seq)
@@ -44,6 +52,37 @@ class StateProjection:
 
     def job_done_event(self, job_id: str) -> asyncio.Event:
         return self._job_done_events.setdefault(job_id, asyncio.Event())
+
+    def pending_requests(self) -> list[tuple[int, str]]:
+        return sorted((seq, text) for seq, text in self.requests.items() if seq not in self.handled_requests)
+
+    def _on_agent_spawned(self, e: Event) -> None:
+        p = e.payload
+        self.agents[p["agent_id"]] = {**p, "status": "active", "spawned_seq": e.seq}
+
+    def _on_agent_retired(self, e: Event) -> None:
+        a = self.agents.get(e.payload["agent_id"])
+        if a is not None:
+            a["status"] = "retired"
+
+    def _on_agent_rewarded(self, e: Event) -> None:
+        self.rewards.append((e.payload["agent_id"], float(e.payload["reward"])))
+
+    def _on_project_requested(self, e: Event) -> None:
+        self.requests[e.seq] = e.payload.get("text", "")
+
+    def _on_project_created(self, e: Event) -> None:
+        self.projects[e.payload["project_id"]] = {**e.payload, "status": "running"}
+        if (req := e.payload.get("request_seq")) is not None:
+            self.handled_requests.add(int(req))
+
+    def _on_project_rejected(self, e: Event) -> None:
+        if (req := e.payload.get("request_seq")) is not None:
+            self.handled_requests.add(int(req))
+
+    def _on_project_completed(self, e: Event) -> None:
+        proj = self.projects.setdefault(e.payload["project_id"], {"project_id": e.payload["project_id"]})
+        proj.update({**e.payload, "status": "completed"})
 
     def _on_job_metric(self, e: Event) -> None:
         job_id = e.payload["job_id"]

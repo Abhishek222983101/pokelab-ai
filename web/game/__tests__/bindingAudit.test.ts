@@ -26,19 +26,7 @@ function readAllTsFiles(dir: string, out: string[] = []): string[] {
 }
 
 describe("binding audit — the store is the only path from event to screen", () => {
-  it("store.ts's set() calls for agents/jobs only happen inside applyEvent", () => {
-    const storeSource = readFileSync(join(WEB_ROOT, "lib", "store.ts"), "utf-8");
-    // the ONLY function in the file allowed to assign to state.agents / state.jobs
-    const applyEventBody = storeSource.slice(storeSource.indexOf("applyEvent:"));
-    const restOfFile = storeSource.slice(0, storeSource.indexOf("applyEvent:"));
-
-    expect(applyEventBody).toMatch(/next\.agents\s*=/);
-    expect(applyEventBody).toMatch(/next\.jobs\s*=/);
-    // nothing BEFORE applyEvent in the file (i.e. no other exported
-    // function) directly assigns these fields
-    expect(restOfFile).not.toMatch(/\.agents\s*=\s*{/);
-    expect(restOfFile).not.toMatch(/\.jobs\s*=\s*{/);
-  });
+  // the store half of the audit lives in lib/__tests__/storeAudit.test.ts (reducer is the only path)
 
   it("no game scene calls useLabStore.setState directly (would bypass the event fold)", () => {
     const sceneFiles = readAllTsFiles(join(WEB_ROOT, "game"));

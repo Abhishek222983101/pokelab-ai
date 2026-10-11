@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field
 from pokelab_brain.llm.jsonio import extract_json
 from pokelab_brain.llm.router import LlmRouter
 
-KNOWN_PAPERS = {"grokking", "distillation", "nerf", "matbench", "arena"}
+KNOWN_PAPERS = {"grokking", "distillation", "nerf", "materials", "arena"}
 
 
 class ProjectSpec(BaseModel):

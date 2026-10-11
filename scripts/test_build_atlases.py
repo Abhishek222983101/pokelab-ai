@@ -13,14 +13,14 @@ def test_manifest_includes_eevee_and_both_trainers():
     assert "eevee" in manifest["mons"]
     assert "ash" in manifest["trainers"]
     assert "oak" in manifest["trainers"]
-    assert "missing" not in manifest, f"unexpectedly missing: {manifest.get('missing')}"
+    assert not manifest.get("missing"), f"unexpectedly missing: {manifest.get('missing')}"
 
 
 def test_copied_files_actually_exist_on_disk():
     build_atlases.build()
     out = build_atlases.OUT
-    assert (out / "mons" / "eevee_front.png").exists()
-    assert (out / "mons" / "eevee_back.png").exists()
+    assert (out / "battle" / "eevee_front_static.png").exists()
+    assert (out / "battle" / "eevee_back_static.png").exists()
     assert (out / "trainers" / "ash.png").exists()
     assert (out / "trainers" / "oak.png").exists()
     assert (out / "manifest.json").exists()

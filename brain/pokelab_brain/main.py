@@ -12,27 +12,40 @@ import os
 import sys
 
 from pokelab_brain.bus import BrainBus
+from pokelab_brain.llm.factory import build_router
+from pokelab_brain.oak.runtime import OakRuntime
 from pokelab_brain.state import StateProjection
 
 logger = logging.getLogger(__name__)
 
 
-async def run(bus_url: str, brain_secret: str, max_backoff_s: float = 30.0) -> None:
+async def run(bus_url: str, brain_secret: str, max_backoff_s: float = 30.0, with_oak: bool = True) -> None:
     state = StateProjection()
+    llm = build_router() if with_oak else None
+    if with_oak and llm is None:
+        logger.warning("no LLM keys found: Oak will only take requests that name a known paper")
     backoff = 1.0
     while True:
         bus = BrainBus(bus_url, brain_secret)
+        oak_task: asyncio.Task | None = None
         try:
             await bus.connect()
             logger.info("brain connected to labd at %s", bus_url)
             backoff = 1.0  # reset on a successful connect
+            oak = OakRuntime(bus, state, llm) if with_oak else None
+            if oak is not None:
+                oak_task = asyncio.create_task(oak.run_forever())
             async for event in bus.subscribe(since=state.last_seq):
                 state.apply(event)
-                # P4 wires Oak's reaction to new events in here; for now the
-                # brain just keeps an accurate, crash-safe projection.
-        except (ConnectionError, OSError) as e:
+                if oak is not None:
+                    oak.saw_event()
+                    if oak_task is not None and oak_task.done() and oak_task.exception():
+                        raise RuntimeError("Oak's loop stopped") from oak_task.exception()
+        except (ConnectionError, OSError, RuntimeError) as e:
             logger.warning("brain lost connection to labd (%s) — retrying in %.1fs", e, backoff)
         finally:
+            if oak_task is not None:
+                oak_task.cancel()
             await bus.close()
         await asyncio.sleep(backoff)
         backoff = min(backoff * 2, max_backoff_s)
