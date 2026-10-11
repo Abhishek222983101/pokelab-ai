@@ -133,4 +133,14 @@ class BrainBus:
         assert self._ws is not None, "call connect() first"
         await self._ws.send(json.dumps({"type": "subscribe", "since": since}))
         while True:
-            yield await self._event_queue.get()
+            # if the connection dies the reader task ends: stop waiting forever on a dead socket so the
+            # caller's reconnect loop (main.run) can start a fresh connection and resume from last_seq
+            get = asyncio.ensure_future(self._event_queue.get())
+            reader = self._reader_task
+            waiters = {get} | ({reader} if reader is not None else set())
+            done, _ = await asyncio.wait(waiters, return_when=asyncio.FIRST_COMPLETED)
+            if get in done:
+                yield get.result()
+            else:
+                get.cancel()
+                raise ConnectionError("labd connection closed")

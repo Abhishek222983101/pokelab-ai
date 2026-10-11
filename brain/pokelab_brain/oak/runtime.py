@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import time
 import uuid
 from typing import Any
@@ -19,7 +20,7 @@ from typing import Any
 from pokelab_brain.agents.spec import AgentSpec
 from pokelab_brain.agents.tools.jobs import ToolContext
 from pokelab_brain.bus import BrainBus
-from pokelab_brain.oak.executors import ProjectRun, specialize_checks
+from pokelab_brain.oak.executors import ProjectRun, narrate_step, specialize_checks
 from pokelab_brain.oak.kits import KITS, paper_for
 from pokelab_brain.oak.lifecycle_loop import LifecycleLoop
 from pokelab_brain.oak.planner import load_template, validate_plan
@@ -158,12 +159,14 @@ class OakRuntime:
         }, project=project_id)
 
         run = ProjectRun(project_id=project_id, profile=profile,
-                         tool_ctx=ToolContext(bus=self.bus, state=self.state, project=project_id, timeout_s=900))
+                         tool_ctx=ToolContext(bus=self.bus, state=self.state, project=project_id, timeout_s=150))
         active = {aid: a.capabilities for aid, a in self.roster.items() if a.status == "active"}
         step_configs = {s.id: {"kit": profile.kit} for s in steps if s.cap == "run_experiment"}
         result = await run_plan(
             steps, active, self.selector, step_configs, emit=lambda k, p: self.publish(k, p, project=project_id),
-            project_id=project_id, executors=run.executors(), max_parallel=2,
+            project_id=project_id, executors=run.executors(), max_parallel=1,
+            narrate=lambda st, c, r: narrate_step(run, st, c, r),
+            dwell_s=float(os.environ.get("POKELAB_STEP_DWELL_S", "2.5")),
             on_capability_gap=self.lifecycle.on_capability_gap if self.lifecycle else None,
             on_task_outcome=self.lifecycle.on_task_outcome if self.lifecycle else None,
         )
