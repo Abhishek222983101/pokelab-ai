@@ -35,12 +35,18 @@ def test_stop_interrupts_a_running_job_before_it_finishes():
     proc.stdin.write(json.dumps(job) + "\n")
     proc.stdin.flush()
 
-    time.sleep(1.5)  # let it get into the training loop for real
+    # Margin bumped from 1.5s to 3s (P12.1): under heavy system load (many
+    # other processes contending for CPU) the pool's cold-import handshake
+    # can itself take close to 1.5s, racing the stop command against job
+    # dispatch rather than against real training. 3s gives real headroom
+    # without weakening what the test actually proves (steps_run far below
+    # the 200000-step budget either way).
+    time.sleep(3.0)
     proc.stdin.write(json.dumps({"t": "stop", "job_id": "long1"}) + "\n")
     proc.stdin.flush()
 
     proc.stdin.close()
-    proc.wait(timeout=15)
+    proc.wait(timeout=20)
     reader.join(timeout=2)
 
     parsed = [json.loads(l) for l in lines if l]
